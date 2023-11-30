@@ -1,5 +1,5 @@
 import ICRC30 "../src";
-import ICRC7 "../../ICRC7/src";
+import ICRC7 "mo:icrc7";
 import Principal "mo:base/Principal";
 import CandyTypesLib "mo:candy_0_3_0/types";
 import CandyConv  "mo:candy_0_3_0/conversion";
