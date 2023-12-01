@@ -90,6 +90,18 @@ module {
   public type TokenApproval =                   MigrationTypes.Current.TokenApproval; 
   public type CollectionApproval =              MigrationTypes.Current.CollectionApproval;
 
+  public type TokenApprovalNotification =              MigrationTypes.Current.TokenApprovalNotification;
+  public type CollectionApprovalNotification =              MigrationTypes.Current.CollectionApprovalNotification;
+  public type RevokeTokenNotification =              MigrationTypes.Current.RevokeTokenNotification;
+  public type RevokeCollectionNotification =              MigrationTypes.Current.RevokeCollectionNotification;
+  public type TransferFromNotification =              MigrationTypes.Current.TransferFromNotification;
+
+  public type TokenApprovedListener =              MigrationTypes.Current.TokenApprovedListener;
+  public type CollectionApprovedListener =              MigrationTypes.Current.CollectionApprovedListener;
+  public type TokenApprovalRevokedListener =              MigrationTypes.Current.TokenApprovalRevokedListener;
+  public type CollectionApprovalRevokedListener =              MigrationTypes.Current.CollectionApprovalRevokedListener;
+  public type TransferFromListener =              MigrationTypes.Current.TransferFromListener;
+
   let default_take = 10000;
 
   /// Function to create an initial state for the Approval ICRC30 management.
@@ -205,6 +217,12 @@ module {
         foundState;
       };
     };
+
+    private let token_approved_listeners = Vec.new<(Text, TokenApprovedListener)>();
+    private let collection_approved_listeners = Vec.new<(Text, CollectionApprovedListener)>();
+     private let token_revoked_listeners = Vec.new<(Text, TokenApprovalRevokedListener)>();
+    private let collection_revoked_listeners = Vec.new<(Text, CollectionApprovalRevokedListener)>();
+    private let transfer_from_listeners = Vec.new<(Text, TransferFromListener)>();
 
     public let migrate = Migration.migrate;
     public let TokenErrorToCollectionError = MigrationTypes.Current.TokenErrorToCollectionError;
@@ -585,6 +603,83 @@ module {
     
     };
 
+    
+
+
+    // events
+
+    type Listener<T> = (Text, T);
+
+    /// Generic function to register a listener.
+    ///
+    /// Parameters:
+    ///     namespace: Text - The namespace identifying the listener.
+    ///     remote_func: T - A callback function to be invoked.
+    ///     listeners: Vec<Listener<T>> - The list of listeners.
+    public func register_listener<T>(namespace: Text, remote_func: T, listeners: Vec.Vector<Listener<T>>) {
+      let listener: Listener<T> = (namespace, remote_func);
+      switch(Vec.indexOf<Listener<T>>(listener, listeners, func(a: Listener<T>, b: Listener<T>) : Bool {
+        Text.equal(a.0, b.0);
+      })){
+        case(?index){
+          Vec.put<Listener<T>>(listeners, index, listener);
+        };
+        case(null){
+          Vec.add<Listener<T>>(listeners, listener);
+        };
+      };
+    };
+
+
+
+    /// Registers a listener for when a token is approved.
+    ///
+    /// Parameters:
+    ///      namespace: Text - The namespace identifying the listener.
+    ///      remote_func: TokenApprovedListener - A callback function to be invoked on token approval.
+    public func register_token_approved_listener(namespace: Text, remote_func : TokenApprovedListener){
+      register_listener<TokenApprovedListener>(namespace, remote_func, token_approved_listeners);
+    };
+
+    /// Registers a listener for when a collection is approved.
+    ///
+    /// Parameters:
+    ///      namespace: Text - The namespace identifying the listener.
+    ///      remote_func: CollectionApprovedListener - A callback function to be invoked on collection approval.
+    public func register_collection_approved_listener(namespace: Text, remote_func : CollectionApprovedListener){
+      register_listener<CollectionApprovedListener>(namespace, remote_func, collection_approved_listeners);
+    };
+
+    /// Registers a listener for when a token approval is revoked.
+    ///
+    /// Parameters:
+    ///      namespace: Text - The namespace identifying the listener.
+    ///      remote_func: TokenApprovalRevokedListener - A callback function to be invoked on token approval revokation.
+    public func register_token_revoked_listener(namespace: Text, remote_func : TokenApprovalRevokedListener){
+      register_listener<TokenApprovalRevokedListener>(namespace, remote_func, token_revoked_listeners);
+      
+    };
+
+    /// Registers a listener for when a collection is revoked.
+    ///
+    /// Parameters:
+    ///      namespace: Text - The namespace identifying the listener.
+    ///      remote_func: CollectionApprovalRevokedListener - A callback function to be invoked on collection approval.
+    public func register_collection_revoked_listener(namespace: Text, remote_func : CollectionApprovalRevokedListener){
+      register_listener<CollectionApprovalRevokedListener>(namespace, remote_func, collection_revoked_listeners);
+    };
+
+    /// Registers a listener for when a transfer from completes. Note. It is likely that a notification will be sent from Transfer as well.
+    ///
+    /// Parameters:
+    ///      namespace: Text - The namespace identifying the listener.
+    ///      remote_func: TransferFromListener - A callback function to be invoked on transfer from.
+    public func register_transfer_from_listener(namespace: Text, remote_func : TransferFromListener){
+      register_listener<TransferFromListener>(namespace, remote_func, transfer_from_listeners);
+    };
+
+    
+
     //ledger mangement
 
     /// Updates ledger information such as approval limitations with the provided request.
@@ -654,6 +749,15 @@ module {
             Vec.size(environment.icrc7.get_state().ledger) - 1;
           };
           case(?val) val.add_ledger_transaction(#Map(Vec.toArray(trx)), ?#Map(Vec.toArray(trxtop)));
+        };
+
+        for(thisEvent in Vec.vals(collection_revoked_listeners)){
+          thisEvent.1({
+            spender = thisItem;
+            from = {owner = caller; subaccount = revokeArgs.from_subaccount};
+            created_at_time = revokeArgs.created_at_time;
+            memo = revokeArgs.memo;
+          }, transaction_id);
         };
 
         Vec.add<RevokeCollectionResponseItem>(list, {
@@ -755,6 +859,16 @@ module {
             Vec.size(environment.icrc7.get_state().ledger) - 1;
           };
           case(?val) val.add_ledger_transaction(#Map(Vec.toArray(trx)), ?#Map(Vec.toArray(trxtop)));
+        };
+
+        for(thisEvent in Vec.vals(token_revoked_listeners)){
+          thisEvent.1({
+            spender = thisItem;
+            token_id = token_id;
+            from = {owner = caller; subaccount = revokeArgs.from_subaccount};
+            created_at_time = revokeArgs.created_at_time;
+            memo = revokeArgs.memo;
+          }, transaction_id);
         };
 
         Vec.add<RevokeTokensResponseItem>(list, {
@@ -1103,6 +1217,33 @@ module {
       };
       ignore Map.put<Blob, (Int,Nat)>(environment.icrc7.get_state().indexes.recent_transactions, Map.bhash, trxhash, (environment.get_time(), transaction_id));
 
+      switch(token_id){
+        case(null){
+          for(thisEvent in Vec.vals(collection_approved_listeners)){
+            thisEvent.1({
+              spender = approval.spender;
+              from = {owner = caller; subaccount = approval.from_subaccount};
+              created_at_time = approval.created_at_time;
+              memo = approval.memo;
+              expires_at = approval.expires_at;
+            }, transaction_id);
+          };
+        };
+        case(?token_id)
+        {
+          for(thisEvent in Vec.vals(token_approved_listeners)){
+            thisEvent.1({
+              spender = approval.spender;
+              token_id = token_id;
+              from = {owner = caller; subaccount = approval.from_subaccount};
+              created_at_time = approval.created_at_time;
+              memo = approval.memo;
+              expires_at = approval.expires_at;
+            }, transaction_id);
+        };
+        }      
+      };
+
       environment.icrc7.cleanUpRecents();
       cleanUpApprovalsRoutine();
 
@@ -1214,8 +1355,29 @@ module {
           case(null){};//unreachable
         };
 
-        return environment.icrc7.finalize_token_transfer(caller, {transferFromArgs with
+        let transaction_result =  environment.icrc7.finalize_token_transfer(caller, {transferFromArgs with
         subaccount = transferFromArgs.from.subaccount} : ICRC7.TransferArgs, trx, trxtop, token_id);
+
+        switch(transaction_result.transfer_result){
+          case(#Ok(transaction_id)){
+            for(thisEvent in Vec.vals(transfer_from_listeners)){
+              thisEvent.1({
+                spender = switch(spender){
+                  case(?val)val;
+                  case(null){{owner = environment.canister(); subaccount = null;}}; //unreachable;
+                };
+                token_id = token_id;
+                from = transferFromArgs.from;
+                to = transferFromArgs.to;
+                created_at_time = transferFromArgs.created_at_time;
+                memo = transferFromArgs.memo;
+              }, transaction_id);
+            };
+          };
+          case(_){};
+        };
+    
+        return transaction_result;
     };
 
     /// Transfers tokens to a new owner as specified in the transferFromArgs.

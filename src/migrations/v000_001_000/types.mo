@@ -34,6 +34,23 @@ module {
     created_at_time : ?Nat64; 
   };
 
+  public type TokenApprovalNotification = {
+    token_id : Nat;
+    from : Account;
+    spender : Account;             // Approval is given to an ICRC Account
+    memo :  ?Blob;
+    expires_at : ?Nat64;
+    created_at_time : ?Nat64; 
+  };
+
+  public type CollectionApprovalNotification = {
+    from : Account;
+    spender : Account;             // Approval is given to an ICRC Account
+    memo :  ?Blob;
+    expires_at : ?Nat64;
+    created_at_time : ?Nat64; 
+  };
+
   public type Error = ICRC7.Error;
 
   public type ApproveTokensError = {
@@ -118,6 +135,15 @@ module {
     created_at_time : ?Nat64;
   };
 
+  public type TransferFromNotification = {
+    token_id: Nat;
+    spender: Account; // the subaccount of the caller (used to identify the spender)
+    from : Account;
+    to : Account;
+    memo : ?Blob;
+    created_at_time : ?Nat64;
+  };
+
   public type TransferFromResponseItem = {
     token_id : Nat;
     transfer_result :{
@@ -162,6 +188,13 @@ module {
       created_at_time : ?Nat64
   };
 
+  public type RevokeTokenNotification = {
+      token_id : Nat;
+      from : Account;
+      spender : Account;
+      memo: ?Blob;
+  };
+
   public type RevokeTokensError = {
       #NonExistingTokenId;
       #Unauthorized;
@@ -189,6 +222,13 @@ module {
   public type RevokeCollectionArgs = {
       from_subaccount: ?Blob;
       spender: ?Account;
+      memo: ?Blob;
+      created_at_time : ?Nat64;
+  };
+
+  public type RevokeCollectionNotification = {
+      from: Account;
+      spender: Account;
       memo: ?Blob;
       created_at_time : ?Nat64;
   };
@@ -285,6 +325,12 @@ module {
   };
 
   public let nullnathash = (nullNatHash32, nullNatEquals);
+
+  public type TokenApprovedListener = ( approval: TokenApprovalNotification, trxid: Nat) -> ();
+  public type CollectionApprovedListener = (approval: CollectionApprovalNotification, trxid: Nat) -> ();
+  public type TokenApprovalRevokedListener = ( revoke: RevokeTokenNotification, trxid: Nat) -> ();
+  public type CollectionApprovalRevokedListener = (revoke: RevokeCollectionNotification, trxid: Nat) -> ();
+  public type TransferFromListener = (trx: TransferFromNotification, trxid: Nat) -> ();
 
   public type Indexes = {
     token_to_approval_account : Map.Map<?Nat, Set.Set<Account>>;
