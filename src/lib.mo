@@ -240,6 +240,12 @@ module {
       return state.indexes;
     };
 
+    /// Gets state information relating to owner approvals.
+    /// - Returns: `State` - Indexes relating to the approvals set by various owners against their accounts.
+    public func get_state() :  CurrentState {
+      return state;
+    };
+
     /// Approves transfers for specified token IDs.
     /// - Parameters:
     ///     - caller: `Principal` - The principal of the user initiating the approval action.
@@ -764,7 +770,7 @@ module {
       label proc for(thisItem in result.vals()){
         let trx = Vec.new<(Text, Value)>();
         let trxtop = Vec.new<(Text, Value)>();
-        Vec.add(trx, ("op", #Text("30approve_collection")));
+        Vec.add(trx, ("op", #Text("30revoke_collection_approval")));
         Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
         Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = caller; subaccount = revokeArgs.from_subaccount})));
         Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
@@ -1268,7 +1274,7 @@ module {
           if(owner.subaccount != approval.from_subaccount) return (?token_id, #Err(#Unauthorized)); //from_subaccount must match owner;
 
           Vec.add(trx,("tid", #Nat(token_id)));
-          Vec.add(trx,("op", #Text("30approve_token")));
+          Vec.add(trx,("op", #Text("30approve_tokens")));
         };
       };
 
