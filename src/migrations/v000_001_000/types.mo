@@ -7,6 +7,7 @@
 import MapLib "mo:map9/Map";
 import SetLib "mo:map9/Set";
 import Nat32 "mo:base/Nat32";
+import Result "mo:base/Result";
 //todo: switch to mops
 import ICRC7 "mo:icrc7";
 
@@ -280,6 +281,16 @@ module {
     icrc7 : ICRC7.ICRC7;
     get_time : () -> Int;
     refresh_state: () -> State;
+    
+    can_approve_token : ?((trx: Transaction, trxtop: ?Transaction, notificication: TokenApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: TokenApprovalNotification), Text>);
+
+    can_approve_collection : ?((trx: Transaction, trxtop: ?Transaction, notificication: CollectionApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: CollectionApprovalNotification), Text>);
+
+    can_revoke_token_approval : ?((trx: Transaction, trxtop: ?Transaction, notificication: RevokeTokenNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: RevokeTokenNotification), Text>);
+
+    can_revoke_collection_approval : ?((trx: Transaction, trxtop: ?Transaction, notificication: RevokeCollectionNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: RevokeCollectionNotification), Text>);
+
+    can_transfer_from : ?((trx: Transaction, trxtop: ?Transaction, notificication: TransferFromNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: TransferFromNotification), Text>);
   };
 
   public func approvalEquals(x: (?Nat, Account), y: (?Nat, Account)) : Bool{

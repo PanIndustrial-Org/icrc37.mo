@@ -111,7 +111,10 @@ let base_environment= {
   get_time = get_time;
   refresh_state = get_icrc7_state;
   log = null;
-  ledger = null;
+  add_ledger_transaction = null;
+  can_burn = null;
+  can_mint = null;
+  can_transfer = null;
 };
 
 func get_icrc30_environment(icrc7 : ICRC7.ICRC7) : ICRC30.Environment{
@@ -121,6 +124,11 @@ func get_icrc30_environment(icrc7 : ICRC7.ICRC7) : ICRC30.Environment{
     get_time = get_time;
     refresh_state = get_icrc30_state;
     icrc7 = icrc7;
+    can_approve_token = null;
+    can_approve_collection = null;
+    can_revoke_token_approval = null;
+    can_revoke_collection_approval = null;
+    can_transfer_from = null;
   }
 };
 

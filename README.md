@@ -11,6 +11,7 @@ mops add icrc30.mo
 ## Usage
 ```motoko
 import Icrc30Mo "mo:icrc30.mo";
+```
 
 ## Initialization
 
@@ -37,6 +38,11 @@ stable var icrc30_migration_state = ICRC7.init(ICRC7.initialState() , #v0_1_0(#i
       get_time = get_time;
       refresh_state = get_icrc30_state;
       icrc7 = icrc7(); //your icrc7 class
+      can_approve_token = null;
+      can_approve_collection  = null;
+      can_revoke_token_approval = null;
+      can_revoke_collection_approval = null;
+      can_transfer_from = null;
     };
   };
 
@@ -50,7 +56,6 @@ stable var icrc30_migration_state = ICRC7.init(ICRC7.initialState() , #v0_1_0(#i
       case(?val) val;
     };
   };
-
 ```
 
 The above pattern will allow your class to call icrc30().XXXXX to easily access the stable state of your class and you will not have to worry about pre or post upgrade methods.
@@ -63,6 +68,11 @@ The environment pattern lets you pass dynamic information about your environment
 - get_time - A function to retrieve the current time to make testing easier
 - refresh_state - A function to call to refresh the state of your class. useful in async environments where state may change after an await - provided for future compatibility.
 - icrc7 - ICRC30 needs a reference to the ICRC7.mo class that runs your NFT canister.
+- can_transfer_from - override functions to access and manipulate a transfer fromtransaction just before it is committed.
+- can_approve_token - override functions to access and manipulate an approve transaction just before it is committed.
+- can_approve_collection - override functions to access and manipulate an approve transaction just before it is committed.
+- can_revoke_token_approval - override functions to access and manipulate a revoke transaction just before it is committed.
+- can_revoke_collection_approval - override functions to access and manipulate a collection transaction just before it is committed.
 
 ### Input Init Args
 
@@ -76,3 +86,83 @@ The environment pattern lets you pass dynamic information about your environment
   ## Deduplication
 
 The class uses a Representational Independent Hash map to keep track of duplicate transactions within the permitted drift timeline.  The hash of the "tx" value is used such that provided memos and created_at_time will keep deduplication from triggering.
+
+## Event system
+
+### Listeners
+
+The class has a register_token_approved_listener, register_collection_approved_listener, register_token_revoked_listener, register_collection_revoked_listener, and register_transfer_from_listener endpoints that allows other objects to register an event listener and be notified whenever a token event occurs from one user to another.
+
+The events are synchronous and cannot directly make calls to other canisters.  We suggest using them to set timers if notifications need to be sent using the Timers API.
+
+Note that TransferFrom Notifications will be accompanies by Transfer Notifications from the icrc7 component.
+
+```
+  public type TransferFromNotification = {
+    token_id: Nat;
+    spender: Account; // the subaccount of the caller (used to identify the spender)
+    from : Account;
+    to : Account;
+    memo : ?Blob;
+    created_at_time : ?Nat64;
+  };
+
+  public type TokenApprovalNotification = {
+    token_id : Nat;
+    from : Account;
+    spender : Account;             // Approval is given to an ICRC Account
+    memo :  ?Blob;
+    expires_at : ?Nat64;
+    created_at_time : ?Nat64; 
+  };
+
+  public type CollectionApprovalNotification = {
+    from : Account;
+    spender : Account;             // Approval is given to an ICRC Account
+    memo :  ?Blob;
+    expires_at : ?Nat64;
+    created_at_time : ?Nat64; 
+  };
+
+  public type RevokeTokenNotification = {
+    token_id : Nat;
+    from : Account;
+    spender : Account;
+    memo: ?Blob;
+  };
+
+  public type RevokeCollectionNotification = {
+    from: Account;
+    spender: Account;
+    memo: ?Blob;
+    created_at_time : ?Nat64;
+  };
+
+  public type TokenApprovedListener = ( approval: TokenApprovalNotification, trxid: Nat) -> ();
+  public type CollectionApprovedListener = (approval: CollectionApprovalNotification, trxid: Nat) -> ();
+  public type TokenApprovalRevokedListener = ( revoke: RevokeTokenNotification, trxid: Nat) -> ();
+  public type CollectionApprovalRevokedListener = (revoke: RevokeCollectionNotification, trxid: Nat) -> ();
+  public type TransferFromListener = (trx: TransferFromNotification, trxid: Nat) -> ();
+
+```
+
+### Overrides
+
+The user may assign a function to intercept each transaction type just before it is committed to the transaction log.  These functions are optional. The user may manipulate the values and return them to the processing transaction and the new values will be used for the transaction block information and for notifying subscribed components.
+
+By returning an #err from these functions you will effectively cancel the transaction and the caller will receive back a #GenericError for that request with the message you provide.
+
+Wire these functions up by including them in your environment object.
+
+```
+    can_approve_token : ?((trx: Transaction, trxtop: ?Transaction, notificication: TokenApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: TokenApprovalNotification), Text>);
+
+    can_approve_collection : ?((trx: Transaction, trxtop: ?Transaction, notificication: CollectionApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: CollectionApprovalNotification), Text>);
+
+    can_revoke_token_approval : ?((trx: Transaction, trxtop: ?Transaction, notificication: RevokeTokenNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: RevokeTokenNotification), Text>);
+
+    can_revoke_collection_approval : ?((trx: Transaction, trxtop: ?Transaction, notificication: RevokeCollectionNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: RevokeCollectionNotification), Text>);
+
+    can_transfer_from : ?((trx: Transaction, trxtop: ?Transaction, notificication: TransferFromNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: TransferFromNotification), Text>);
+
+```

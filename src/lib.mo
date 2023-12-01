@@ -77,6 +77,7 @@ module {
   public type TransferFromResponse =            MigrationTypes.Current.TransferFromResponse;
   public type TransferFromResponseItem =        MigrationTypes.Current.TransferFromResponseItem;
   public type TransferFromError =               MigrationTypes.Current.TransferFromArgs;
+  public type TransferNotification =        ICRC7.TransferNotification;
   public type RevokeTokensArgs =            MigrationTypes.Current.RevokeTokensArgs;
   public type RevokeTokensError =           MigrationTypes.Current.RevokeTokensError;
   public type RevokeTokensResponse =        MigrationTypes.Current.RevokeTokensResponse;
@@ -536,14 +537,16 @@ module {
     ///     - remaining: `Nat` - The number of approvals you want the Map size reduced to
     public func cleanUpApprovals(remaining: Nat) : (){
       //this naievly delete the oldest items until the collection is equal or below the remaining value
+      let memo = Text.encodeUtf8("icrc30_system_clean");
     
       label clean for(thisItem in Map.entries<(?Nat, Account), ApprovalInfo>(state.token_approvals)){
+
         switch(thisItem.0.0){
           //collection approvals
           case(null){
             let result = revoke_approvals(thisItem.0.0, ?thisItem.0.1, thisItem.1.from_subaccount, null);
 
-            for(thisItem in result.vals()){
+            label proc for(thisItem in result.vals()){
               let trx = Vec.new<(Text, Value)>();
               let trxtop = Vec.new<(Text, Value)>();
 
@@ -551,28 +554,47 @@ module {
               Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
               Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = environment.canister(); subaccount = null})));
               Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
-              Vec.add(trx, ("memo", #Blob(Text.encodeUtf8("icrc30_system_clean"))));
+              Vec.add(trx, ("memo", #Blob(memo)));
               
 
+              let txMap = #Map(Vec.toArray(trx));
+              let txTopMap = #Map(Vec.toArray(trxtop));
+              let preNotification = {
+                  spender = thisItem;
+                  from = {owner = environment.canister(); subaccount = null};
+                  created_at_time = ?Nat64.fromNat(Int.abs(environment.get_time()));
+                  memo = ?memo;
+                };
+
+                
               //implment ledger;
               
-
-              let transaction_id = switch(environment.icrc7.get_environment().ledger){
+              let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
                 case(null){
                   //use local ledger. This will not scale
-                  Vec.add(trxtop, ("tx", #Map(Vec.toArray(trx))));
-                  Vec.add(environment.icrc7.get_state().ledger, #Map(Vec.toArray(trxtop)));
+                  let final = switch(insert_map(?txTopMap, "tx", txMap)){
+                    case(#ok(val)) val;
+                    case(#err(err)){
+                      
+                      continue proc;
+                    };
+                  };
+                  Vec.add<Value>(environment.icrc7.get_state().ledger, final);
                   Vec.size(environment.icrc7.get_state().ledger) - 1;
                 };
-                case(?val) val.add_ledger_transaction(#Map(Vec.toArray(trx)), ?#Map(Vec.toArray(trxtop)));
+                case(?val) val(txMap, ?txTopMap);
+              };
+
+              for(thisEvent in Vec.vals(collection_revoked_listeners)){
+                thisEvent.1(preNotification, transaction_id);
               };
             };
           };
           case(?token_id){
             let #ok(owner) = environment.icrc7.get_token_owner_canonical(token_id) else continue clean;
             let result =  revoke_approvals(thisItem.0.0, ?thisItem.0.1, thisItem.1.from_subaccount, ?owner);
-
-            for(thisItem in result.vals()){
+            let memo = Text.encodeUtf8("icrc30_system_clean");
+            label proc for(thisItem in result.vals()){
               let trx = Vec.new<(Text, Value)>();
               let trxtop = Vec.new<(Text, Value)>();
               Vec.add(trx, ("op", #Text("30revoke_token_approval")));
@@ -580,18 +602,38 @@ module {
               Vec.add(trx, ("tknid", #Nat(token_id)));
               Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = environment.canister(); subaccount = null})));
               Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
-              Vec.add(trx, ("memo", #Blob(Text.encodeUtf8("icrc30_system_clean"))));
+              Vec.add(trx, ("memo", #Blob(memo)));
+
+              let txMap = #Map(Vec.toArray(trx));
+              let txTopMap = #Map(Vec.toArray(trxtop));
+              let preNotification = {
+                spender = thisItem;
+                token_id = token_id;
+                from = {owner = environment.canister(); subaccount = null};
+                created_at_time = ?Nat64.fromNat(Int.abs(environment.get_time()));
+                memo = ?memo;
+              };
 
               //implment ledger;
-              let transaction_id = switch(environment.icrc7.get_environment().ledger){
+              let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
                 case(null){
                   //use local ledger. This will not scale
-                  Vec.add(trxtop, ("tx", #Map(Vec.toArray(trx))));
-                  Vec.add(environment.icrc7.get_state().ledger, #Map(Vec.toArray(trxtop)));
+                  let final = switch(insert_map(?txTopMap, "tx", txMap)){
+                    case(#ok(val)) val;
+                    case(#err(err)){
+                      continue proc;
+                    };
+                  };
+                  Vec.add<Value>(environment.icrc7.get_state().ledger, final);
                   Vec.size(environment.icrc7.get_state().ledger) - 1;
                 };
-                case(?val) val.add_ledger_transaction(#Map(Vec.toArray(trx)), ?#Map(Vec.toArray(trxtop)));
+                case(?val) val(txMap, ?txTopMap);
               };
+
+              for(thisEvent in Vec.vals(token_revoked_listeners)){
+                thisEvent.1(preNotification, transaction_id);
+              };
+
             };
 
 
@@ -719,7 +761,7 @@ module {
 
       let ?(memo) = testMemo(revokeArgs.memo) else return [{revoke_result = #Err(#GenericError({message="invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits"; error_code=45})); spender = null}];
 
-      for(thisItem in result.vals()){
+      label proc for(thisItem in result.vals()){
         let trx = Vec.new<(Text, Value)>();
         let trxtop = Vec.new<(Text, Value)>();
         Vec.add(trx, ("op", #Text("30approve_collection")));
@@ -740,24 +782,55 @@ module {
           };
         };
 
-         //implment ledger;
-        let transaction_id = switch(environment.icrc7.get_environment().ledger){
-          case(null){
-            //use local ledger. This will not scale
-            Vec.add(trxtop, ("tx", #Map(Vec.toArray(trx))));
-            Vec.add(environment.icrc7.get_state().ledger, #Map(Vec.toArray(trxtop)));
-            Vec.size(environment.icrc7.get_state().ledger) - 1;
-          };
-          case(?val) val.add_ledger_transaction(#Map(Vec.toArray(trx)), ?#Map(Vec.toArray(trxtop)));
-        };
-
-        for(thisEvent in Vec.vals(collection_revoked_listeners)){
-          thisEvent.1({
+        let txMap = #Map(Vec.toArray(trx));
+        let txTopMap = #Map(Vec.toArray(trxtop));
+        let preNotification = {
             spender = thisItem;
             from = {owner = caller; subaccount = revokeArgs.from_subaccount};
             created_at_time = revokeArgs.created_at_time;
             memo = revokeArgs.memo;
-          }, transaction_id);
+          };
+
+        let(finaltx, finaltxtop, notification) : (Value, ?Value, RevokeCollectionNotification) = switch(environment.can_revoke_collection_approval){
+          case(null){
+            (txMap, ?txTopMap, preNotification);
+          };
+          case(?remote_func){
+            switch(remote_func(txMap, ?txTopMap, preNotification)){
+              case(#ok(val)) val;
+              case(#err(tx)){
+                Vec.add(list, {
+                  spender = ?thisItem;
+                  revoke_result = #Err(#GenericError({error_code = 394; message = tx}));
+                });
+                continue proc;
+              };
+            };
+          };
+        };
+
+         //implment ledger;
+        let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
+          case(null){
+            //use local ledger. This will not scale
+            let final = switch(insert_map(finaltxtop, "tx", finaltx)){
+              case(#ok(val)) val;
+              case(#err(err)){
+                Vec.add(list, {
+                  spender = ?thisItem;
+                  revoke_result = #Err(#GenericError({error_code = 3849; message = err}));
+                });
+                continue proc;
+              };
+            };
+            Vec.add<Value>(environment.icrc7.get_state().ledger, final);
+            Vec.size(environment.icrc7.get_state().ledger) - 1;
+          };
+          case(?val) val(finaltx, finaltxtop);
+        };
+
+        for(thisEvent in Vec.vals(collection_revoked_listeners)){
+          thisEvent.1(notification, transaction_id);
         };
 
         Vec.add<RevokeCollectionResponseItem>(list, {
@@ -826,7 +899,7 @@ module {
 
       let list = Vec.new<RevokeTokensResponseItem>();
 
-      for(thisItem in result.vals()){
+      label proc for(thisItem in result.vals()){
         let trx = Vec.new<(Text, Value)>();
         let trxtop = Vec.new<(Text, Value)>();
 
@@ -850,25 +923,58 @@ module {
           };
         };
 
-         //implement ledger;
-        let transaction_id = switch(environment.icrc7.get_environment().ledger){
-          case(null){
-            //use local ledger. This will not scale
-            Vec.add(trxtop, ("tx", #Map(Vec.toArray(trx))));
-            Vec.add(environment.icrc7.get_state().ledger, #Map(Vec.toArray(trxtop)));
-            Vec.size(environment.icrc7.get_state().ledger) - 1;
-          };
-          case(?val) val.add_ledger_transaction(#Map(Vec.toArray(trx)), ?#Map(Vec.toArray(trxtop)));
-        };
-
-        for(thisEvent in Vec.vals(token_revoked_listeners)){
-          thisEvent.1({
+        let txMap = #Map(Vec.toArray(trx));
+        let txTopMap = #Map(Vec.toArray(trxtop));
+        let preNotification = {
             spender = thisItem;
             token_id = token_id;
             from = {owner = caller; subaccount = revokeArgs.from_subaccount};
             created_at_time = revokeArgs.created_at_time;
             memo = revokeArgs.memo;
-          }, transaction_id);
+          };
+
+        let(finaltx, finaltxtop, notification) : (Value, ?Value, RevokeTokenNotification) = switch(environment.can_revoke_token_approval){
+          case(null){
+            (txMap, ?txTopMap, preNotification);
+          };
+          case(?remote_func){
+            switch(remote_func(txMap, ?txTopMap, preNotification)){
+              case(#ok(val)) val;
+              case(#err(tx)){
+                Vec.add(list, {
+                  token_id = token_id;
+                  spender = ?thisItem;
+                  revoke_result = #Err(#GenericError({error_code = 394; message = tx}));
+                });
+                continue proc;
+              };
+            };
+          };
+        };
+
+         //implement ledger;
+        let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
+          case(null){
+            //use local ledger. This will not scale
+            let final = switch(insert_map(finaltxtop, "tx", finaltx)){
+              case(#ok(val)) val;
+              case(#err(err)){
+                Vec.add(list, {
+                  token_id = token_id;
+                  spender = ?thisItem;
+                  revoke_result = #Err(#GenericError({error_code = 394; message = err}));
+                });
+                continue proc;
+              };
+            };
+            Vec.add<Value>(environment.icrc7.get_state().ledger, final);
+            Vec.size(environment.icrc7.get_state().ledger) - 1;
+          };
+          case(?val) val(finaltx, finaltxtop);
+        };
+
+        for(thisEvent in Vec.vals(token_revoked_listeners)){
+          thisEvent.1(notification, transaction_id);
         };
 
         Vec.add<RevokeTokensResponseItem>(list, {
@@ -980,11 +1086,11 @@ module {
     ///     - from: `?Account` - The previous owner's account.
     ///     - to: `Account` - The new owner's account.
     ///     - trx_id: `Nat` - The unique identifier for the transfer transaction.
-    private func token_transferred(token_id: Nat, from: ?Account, to: Account, trx_id: Nat) : (){
-      debug if(debug_channel.announce) D.print("token_transfered was called " # debug_show((token_id, from, to, trx_id)));
+    private func token_transferred(transfer: TransferNotification, trx_id: Nat) : (){
+      debug if(debug_channel.announce) D.print("token_transfered was called " # debug_show((transfer.token_id, transfer.from, transfer.to, trx_id)));
       //clear all approvals for this token
       //note: we do not have to log these revokes to the transaction log becasue ICRC30 defines that all approvals are revoked when a token is transfered.
-      ignore revoke_approvals(?token_id, null, null, from);
+      ignore revoke_approvals(?transfer.token_id, null, null, ?transfer.from);
     };
 
     //registers the private token_transfered event with the ICRC7 component so that approvals can be cleared when a token is transfered.
@@ -1085,6 +1191,21 @@ module {
       };
     };
 
+    private func insert_map(top: ?Value, key: Text, val: Value): Result.Result<Value, Text> {
+      let foundTop = switch(top){
+        case(?val) val;
+        case(null) #Map([]);
+      };
+      switch(foundTop){
+        case(#Map(a_map)){
+          let vecMap = Vec.fromArray<(Text, Value)>(a_map);
+          Vec.add<(Text, Value)>(vecMap, (key, val));
+          return #ok(#Map(Vec.toArray(vecMap)));
+        };
+        case(_) return #err("bad map");
+      };
+    };
+
 
     /// approve the transfer of a token by a spender
     private func approve_transfer(environment: Environment, caller: Principal, token_id: ?Nat, approval: ApprovalInfo) : (?Nat, ApprovalResult) {
@@ -1169,6 +1290,76 @@ module {
         case(null){};
       };
 
+      let txMap = #Map(Vec.toArray(trx));
+      let txTopMap = #Map(Vec.toArray(trxtop));
+
+      let(finaltx, finaltxtop, tokenNotification, collectionNotification) : (Value, ?Value, ?TokenApprovalNotification, ?CollectionApprovalNotification)= switch(token_id){
+        case(null){
+          let preNotification = {
+              spender = approval.spender;
+              from = {owner = caller; subaccount = approval.from_subaccount};
+              created_at_time = approval.created_at_time;
+              memo = approval.memo;
+              expires_at = approval.expires_at;
+            };
+
+          switch(environment.can_approve_collection){
+            case(null){
+              (txMap, ?txTopMap, null, ?preNotification);
+            };
+            case(?remote_func){
+              switch(remote_func(txMap, ?txTopMap, preNotification)){
+                case(#ok(val)) (val.0, val.1, null, ?val.2);
+                case(#err(tx)){
+                  return(null, #Err(#GenericError({error_code = 394; message = tx})));
+                };
+              };
+            };
+          };
+        };
+        case(?token_id)
+        {
+          let preNotification = {
+              spender = approval.spender;
+              token_id = token_id;
+              from = {owner = caller; subaccount = approval.from_subaccount};
+              created_at_time = approval.created_at_time;
+              memo = approval.memo;
+              expires_at = approval.expires_at;
+            };
+
+          switch(environment.can_approve_token){
+            case(null){
+              (txMap, ?txTopMap, ?preNotification, null);
+            };
+            case(?remote_func){
+              switch(remote_func(txMap, ?txTopMap, preNotification)){
+                case(#ok(val)) (val.0, val.1, null, ?val.2);
+                case(#err(tx)){
+                  return(null, #Err(#GenericError({error_code = 394; message = tx})));
+                };
+              };
+            };
+          };
+        };    
+      };
+
+      //todo: implment ledger;
+      let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
+        case(null){
+            //use local ledger. This will not scale
+            let final = switch(insert_map(finaltxtop, "tx", finaltx)){
+              case(#ok(val)) val;
+              case(#err(err)){
+                return(token_id,  #Err(#GenericError({error_code = 3849; message = err})));
+              };
+            };
+            Vec.add<Value>(environment.icrc7.get_state().ledger, final);
+            Vec.size(environment.icrc7.get_state().ledger) - 1;
+          };
+          case(?val) val(finaltx, finaltxtop);
+      };
+
       //find existing approval
       switch(Map.get<(?Nat,Account),ApprovalInfo>(state.token_approvals, apphash, (token_id,approval.spender))){
         case(null){};
@@ -1205,41 +1396,20 @@ module {
 
       Set.add<(?Nat, Account)>(existingIndex2, apphash, (token_id, approval.spender));
 
-      //todo: implment ledger;
-      let transaction_id = switch(environment.icrc7.get_environment().ledger){
-        case(null){
-          //use local ledger. This will not scale
-          Vec.add(trxtop, ("tx", #Map(Vec.toArray(trx))));
-          Vec.add(environment.icrc7.get_state().ledger, #Map(Vec.toArray(trxtop)));
-          Vec.size(environment.icrc7.get_state().ledger) - 1;
-        };
-        case(?val) val.add_ledger_transaction(#Map(Vec.toArray(trx)), ?#Map(Vec.toArray(trxtop)));
-      };
       ignore Map.put<Blob, (Int,Nat)>(environment.icrc7.get_state().indexes.recent_transactions, Map.bhash, trxhash, (environment.get_time(), transaction_id));
 
       switch(token_id){
         case(null){
+          let ?thisNotification = collectionNotification;
           for(thisEvent in Vec.vals(collection_approved_listeners)){
-            thisEvent.1({
-              spender = approval.spender;
-              from = {owner = caller; subaccount = approval.from_subaccount};
-              created_at_time = approval.created_at_time;
-              memo = approval.memo;
-              expires_at = approval.expires_at;
-            }, transaction_id);
+            thisEvent.1(thisNotification, transaction_id);
           };
         };
         case(?token_id)
         {
+          let ?thisNotification = tokenNotification;
           for(thisEvent in Vec.vals(token_approved_listeners)){
-            thisEvent.1({
-              spender = approval.spender;
-              token_id = token_id;
-              from = {owner = caller; subaccount = approval.from_subaccount};
-              created_at_time = approval.created_at_time;
-              memo = approval.memo;
-              expires_at = approval.expires_at;
-            }, transaction_id);
+            thisEvent.1(thisNotification, transaction_id);
         };
         }      
       };
@@ -1355,23 +1525,45 @@ module {
           case(null){};//unreachable
         };
 
+        let txMap = #Map(Vec.toArray(trx));
+        let txTopMap = #Map(Vec.toArray(trxtop));
+        let preNotification = {
+          spender = switch(spender){
+            case(?val)val;
+            case(null){{owner = environment.canister(); subaccount = null;}}; //unreachable;
+          };
+          token_id = token_id;
+          from = transferFromArgs.from;
+          to = transferFromArgs.to;
+          created_at_time = transferFromArgs.created_at_time;
+          memo = transferFromArgs.memo;
+        };
+
+        let(finaltx, finaltxtop, notification) : (Value, ?Value, TransferFromNotification) = switch(environment.can_transfer_from){
+          case(null){
+            (txMap, ?txTopMap, preNotification);
+          };
+          case(?remote_func){
+            switch(remote_func(txMap, ?txTopMap, preNotification)){
+              case(#ok(val)) val;
+              case(#err(tx)){
+                
+                return {
+                  token_id = token_id;
+                  transfer_result = #Err(#GenericError({error_code = 394; message = tx}));
+                };
+              };
+            };
+          };
+        };
+
         let transaction_result =  environment.icrc7.finalize_token_transfer(caller, {transferFromArgs with
         subaccount = transferFromArgs.from.subaccount} : ICRC7.TransferArgs, trx, trxtop, token_id);
 
         switch(transaction_result.transfer_result){
           case(#Ok(transaction_id)){
             for(thisEvent in Vec.vals(transfer_from_listeners)){
-              thisEvent.1({
-                spender = switch(spender){
-                  case(?val)val;
-                  case(null){{owner = environment.canister(); subaccount = null;}}; //unreachable;
-                };
-                token_id = token_id;
-                from = transferFromArgs.from;
-                to = transferFromArgs.to;
-                created_at_time = transferFromArgs.created_at_time;
-                memo = transferFromArgs.memo;
-              }, transaction_id);
+              thisEvent.1(notification, transaction_id);
             };
           };
           case(_){};
@@ -1447,18 +1639,18 @@ module {
     /// Retrieves statistics related to the ledger and approvals.
     /// - Returns: `Stats` - Statistics reflecting the state of the ledger and the number of approvals set by owners.
     public func get_stats() : Stats{
-    return {
-      ledger_info = {
-        max_approvals_per_token_or_collection  = state.ledger_info.max_approvals_per_token_or_collection;
-        max_revoke_approvals    = state.ledger_info.max_revoke_approvals;
-      };
-      token_approvals_count = Map.size(state.token_approvals);
-      indexes = {
-        token_to_approval_account_count = Map.size(state.indexes.token_to_approval_account);
-        owner_to_approval_account_count = Map.size(state.indexes.owner_to_approval_account);
+      return {
+        ledger_info = {
+          max_approvals_per_token_or_collection  = state.ledger_info.max_approvals_per_token_or_collection;
+          max_revoke_approvals    = state.ledger_info.max_revoke_approvals;
+        };
+        token_approvals_count = Map.size(state.token_approvals);
+        indexes = {
+          token_to_approval_account_count = Map.size(state.indexes.token_to_approval_account);
+          owner_to_approval_account_count = Map.size(state.indexes.owner_to_approval_account);
+        };
       };
     };
-  };
 
   };
 
