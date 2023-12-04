@@ -9,7 +9,7 @@ import SetLib "mo:map9/Set";
 import Nat32 "mo:base/Nat32";
 import Result "mo:base/Result";
 //todo: switch to mops
-import ICRC7 "mo:icrc7";
+import ICRC7 "mo:icrc7-mo";
 
 module {
 
@@ -281,7 +281,7 @@ module {
     icrc7 : ICRC7.ICRC7;
     get_time : () -> Int;
     refresh_state: () -> State;
-    
+
     can_approve_token : ?((trx: Transaction, trxtop: ?Transaction, notificication: TokenApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: TokenApprovalNotification), Text>);
 
     can_approve_collection : ?((trx: Transaction, trxtop: ?Transaction, notificication: CollectionApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: CollectionApprovalNotification), Text>);
