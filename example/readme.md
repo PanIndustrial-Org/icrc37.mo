@@ -1,1 +1,1 @@
-ICRC30 requires ICRC7, therefore, no example is provided in this repository. Please see the https://github.com/PanIndustrial-org/icrc7.mo for an implementation example.
+ICRC30 requires ICRC7, therefore, no example is provided in this repository. Please see the https://github.com/PanIndustrial-org/icrc_nft.mo for an implementation example.

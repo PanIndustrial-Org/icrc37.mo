@@ -68,7 +68,7 @@ The environment pattern lets you pass dynamic information about your environment
 - get_time - A function to retrieve the current time to make testing easier
 - refresh_state - A function to call to refresh the state of your class. useful in async environments where state may change after an await - provided for future compatibility.
 - icrc7 - ICRC30 needs a reference to the ICRC7.mo class that runs your NFT canister.
-- can_transfer_from - override functions to access and manipulate a transfer fromtransaction just before it is committed.
+- can_transfer_from - override functions to access and manipulate a transfer from transaction just before it is committed.
 - can_approve_token - override functions to access and manipulate an approve transaction just before it is committed.
 - can_approve_collection - override functions to access and manipulate an approve transaction just before it is committed.
 - can_revoke_token_approval - override functions to access and manipulate a revoke transaction just before it is committed.

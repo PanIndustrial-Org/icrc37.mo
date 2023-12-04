@@ -22,12 +22,12 @@ module {
   /// Each field corresponds to an operation such as transfer or indexing, allowing
   /// developers to enable or disable logging during development.
   let debug_channel = {
-    announce = true;
-    indexing = true;
-    transfer = true;
-    querying = true;
-    approve = true;
-    revoke = true;
+    announce = false;
+    indexing = false;
+    transfer = false;
+    querying = false;
+    approve = false;
+    revoke = false;
   };
 
   /// Access to Map v9.0.1
@@ -170,7 +170,7 @@ module {
     icrc30_max_approvals_per_token_or_collection: shared query ()-> async ?Nat;
     icrc30_max_revoke_approvals:  shared query ()-> async ?Nat;
     icrc30_is_approved : shared query (spender: Account, from_subaccount: ?Blob, token_id : Nat) -> async Bool;
-    icrc30_get_token_approvals : shared query (token_ids : [Nat], prev : ?TokenApproval, take :  ?Nat) -> async [TokenApproval];
+    icrc30_get_approvals : shared query (token_ids : [Nat], prev : ?TokenApproval, take :  ?Nat) -> async [TokenApproval];
     icrc30_get_collection_approvals : shared query (owner : Account, prev : ?CollectionApproval, take : ?Nat) -> async [CollectionApproval];
     icrc30_transfer_from: shared (TransferFromArgs)-> async TransferFromResponse;
     icrc30_approve: shared (token_ids: [Nat], approval: ApprovalInfo)-> async ApprovalResponse;
@@ -579,16 +579,13 @@ module {
               
               let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
                 case(null){
-                  //use local ledger. This will not scale
-                  let final = switch(insert_map(?txTopMap, "tx", txMap)){
+                  
+                  switch(add_local_ledger(?txTopMap, txMap)){
                     case(#ok(val)) val;
                     case(#err(err)){
-                      
                       continue proc;
                     };
                   };
-                  Vec.add<Value>(environment.icrc7.get_state().ledger, final);
-                  Vec.size(environment.icrc7.get_state().ledger) - 1;
                 };
                 case(?val) val(txMap, ?txTopMap);
               };
@@ -633,7 +630,11 @@ module {
                     };
                   };
                   Vec.add<Value>(environment.icrc7.get_state().ledger, final);
-                  Vec.size(environment.icrc7.get_state().ledger) - 1;
+                  if(Vec.size(environment.icrc7.get_state().ledger) >= 1){
+                    Nat.sub(Vec.size(environment.icrc7.get_state().ledger), 1);
+                  } else {
+                    D.trap("ledger size was 0");
+                  }
                 };
                 case(?val) val(txMap, ?txTopMap);
               };
@@ -756,6 +757,18 @@ module {
     };
 
     //Update functions
+
+    private func add_local_ledger(finaltxtop : ?Value, finaltx: Value) : Result.Result<Nat,Text> {
+      //use local ledger. This will not scale
+      let final = switch(insert_map(finaltxtop, "tx", finaltx)){
+        case(#ok(val)) val;
+        case(#err(err)){
+          return #err(err);
+        };
+      };
+      Vec.add<Value>(environment.icrc7.get_state().ledger, final);
+      return #ok(Vec.size(environment.icrc7.get_state().ledger) - 1);
+    };
   
     /// Revokes collection approval for the current caller based on provided arguments.
     /// - Parameters:
@@ -820,19 +833,16 @@ module {
          //implment ledger;
         let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
           case(null){
-            //use local ledger. This will not scale
-            let final = switch(insert_map(finaltxtop, "tx", finaltx)){
-              case(#ok(val)) val;
+            switch(add_local_ledger(finaltxtop, finaltx)){
               case(#err(err)){
-                Vec.add(list, {
+                 Vec.add(list, {
                   spender = ?thisItem;
                   revoke_result = #Err(#GenericError({error_code = 3849; message = err}));
                 });
                 continue proc;
               };
+              case(#ok(val)) val;
             };
-            Vec.add<Value>(environment.icrc7.get_state().ledger, final);
-            Vec.size(environment.icrc7.get_state().ledger) - 1;
           };
           case(?val) val(finaltx, finaltxtop);
         };
@@ -964,7 +974,7 @@ module {
         let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
           case(null){
             //use local ledger. This will not scale
-            let final = switch(insert_map(finaltxtop, "tx", finaltx)){
+            switch(add_local_ledger(finaltxtop, finaltx)){
               case(#ok(val)) val;
               case(#err(err)){
                 Vec.add(list, {
@@ -975,8 +985,6 @@ module {
                 continue proc;
               };
             };
-            Vec.add<Value>(environment.icrc7.get_state().ledger, final);
-            Vec.size(environment.icrc7.get_state().ledger) - 1;
           };
           case(?val) val(finaltx, finaltxtop);
         };
@@ -1357,15 +1365,12 @@ module {
       //todo: implment ledger;
       let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
         case(null){
-            //use local ledger. This will not scale
-            let final = switch(insert_map(finaltxtop, "tx", finaltx)){
+            switch(add_local_ledger(finaltxtop, finaltx)){
               case(#ok(val)) val;
               case(#err(err)){
                 return(token_id,  #Err(#GenericError({error_code = 3849; message = err})));
               };
             };
-            Vec.add<Value>(environment.icrc7.get_state().ledger, final);
-            Vec.size(environment.icrc7.get_state().ledger) - 1;
           };
           case(?val) val(finaltx, finaltxtop);
       };
