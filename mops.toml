@@ -1,5 +1,5 @@
 [package]
-name = "icrc30.mo"
+name = "icrc30-mo"
 version = "0.1.0"
 description = "icrc30 for motoko"
 repository = "https://github.com/PanIndustrial-Org/icrc30.mo"
