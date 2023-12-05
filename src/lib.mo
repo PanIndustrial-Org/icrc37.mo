@@ -77,7 +77,9 @@ module {
   public type TransferFromResponse =            MigrationTypes.Current.TransferFromResponse;
   public type TransferFromResponseItem =        MigrationTypes.Current.TransferFromResponseItem;
   public type TransferFromError =               MigrationTypes.Current.TransferFromArgs;
-  public type TransferNotification =        ICRC7.TransferNotification;
+  public type TransferNotification =            ICRC7.TransferNotification;
+  public type BurnNotification =                ICRC7.BurnNotification;
+  
   public type RevokeTokensArgs =            MigrationTypes.Current.RevokeTokensArgs;
   public type RevokeTokensError =           MigrationTypes.Current.RevokeTokensError;
   public type RevokeTokensResponse =        MigrationTypes.Current.RevokeTokensResponse;
@@ -562,7 +564,7 @@ module {
               Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
               Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = environment.canister(); subaccount = null})));
               Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
-              Vec.add(trx, ("memo", #Blob(memo)));
+              Vec.add(trxtop, ("memo", #Blob(memo)));
               
 
               let txMap = #Map(Vec.toArray(trx));
@@ -580,7 +582,7 @@ module {
               let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
                 case(null){
                   
-                  switch(add_local_ledger(?txTopMap, txMap)){
+                  switch(environment.icrc7.add_local_ledger(?txTopMap, txMap)){
                     case(#ok(val)) val;
                     case(#err(err)){
                       continue proc;
@@ -604,10 +606,10 @@ module {
               let trxtop = Vec.new<(Text, Value)>();
               Vec.add(trx, ("op", #Text("30revoke_token_approval")));
               Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
-              Vec.add(trx, ("tknid", #Nat(token_id)));
+              Vec.add(trx, ("tid", #Nat(token_id)));
               Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = environment.canister(); subaccount = null})));
               Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
-              Vec.add(trx, ("memo", #Blob(memo)));
+              Vec.add(trxtop, ("memo", #Blob(memo)));
 
               let txMap = #Map(Vec.toArray(trx));
               let txTopMap = #Map(Vec.toArray(trxtop));
@@ -623,18 +625,12 @@ module {
               let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
                 case(null){
                   //use local ledger. This will not scale
-                  let final = switch(insert_map(?txTopMap, "tx", txMap)){
+                  switch(environment.icrc7.add_local_ledger(?txTopMap, txMap)){
                     case(#ok(val)) val;
                     case(#err(err)){
                       continue proc;
                     };
                   };
-                  Vec.add<Value>(environment.icrc7.get_state().ledger, final);
-                  if(Vec.size(environment.icrc7.get_state().ledger) >= 1){
-                    Nat.sub(Vec.size(environment.icrc7.get_state().ledger), 1);
-                  } else {
-                    D.trap("ledger size was 0");
-                  }
                 };
                 case(?val) val(txMap, ?txTopMap);
               };
@@ -642,10 +638,7 @@ module {
               for(thisEvent in Vec.vals(token_revoked_listeners)){
                 thisEvent.1(preNotification, transaction_id);
               };
-
             };
-
-
           };
         };
 
@@ -653,9 +646,6 @@ module {
       };
     
     };
-
-    
-
 
     // events
 
@@ -758,18 +748,6 @@ module {
 
     //Update functions
 
-    private func add_local_ledger(finaltxtop : ?Value, finaltx: Value) : Result.Result<Nat,Text> {
-      //use local ledger. This will not scale
-      let final = switch(insert_map(finaltxtop, "tx", finaltx)){
-        case(#ok(val)) val;
-        case(#err(err)){
-          return #err(err);
-        };
-      };
-      Vec.add<Value>(environment.icrc7.get_state().ledger, final);
-      return #ok(Vec.size(environment.icrc7.get_state().ledger) - 1);
-    };
-  
     /// Revokes collection approval for the current caller based on provided arguments.
     /// - Parameters:
     ///     - caller: `Principal` - The principal of the user initiating the revoke action.
@@ -785,7 +763,7 @@ module {
       label proc for(thisItem in result.vals()){
         let trx = Vec.new<(Text, Value)>();
         let trxtop = Vec.new<(Text, Value)>();
-        Vec.add(trx, ("op", #Text("30revoke_collection_approval")));
+        Vec.add(trx, ("op", #Text("30revoke_coll")));
         Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
         Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = caller; subaccount = revokeArgs.from_subaccount})));
         Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
@@ -833,7 +811,7 @@ module {
          //implment ledger;
         let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
           case(null){
-            switch(add_local_ledger(finaltxtop, finaltx)){
+            switch(environment.icrc7.add_local_ledger(finaltxtop, finaltx)){
               case(#err(err)){
                  Vec.add(list, {
                   spender = ?thisItem;
@@ -921,8 +899,8 @@ module {
         let trx = Vec.new<(Text, Value)>();
         let trxtop = Vec.new<(Text, Value)>();
 
-        Vec.add(trx, ("tknid", #Nat(token_id)));
-        Vec.add(trx, ("op", #Text("30revoke_token_approval")));
+        Vec.add(trx, ("tid", #Nat(token_id)));
+        Vec.add(trx, ("op", #Text("30revoke")));
         Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
         Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = caller; subaccount = revokeArgs.from_subaccount})));
         Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
@@ -974,7 +952,7 @@ module {
         let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
           case(null){
             //use local ledger. This will not scale
-            switch(add_local_ledger(finaltxtop, finaltx)){
+            switch(environment.icrc7.add_local_ledger(finaltxtop, finaltx)){
               case(#ok(val)) val;
               case(#err(err)){
                 Vec.add(list, {
@@ -1109,8 +1087,22 @@ module {
       ignore revoke_approvals(?transfer.token_id, null, null, ?transfer.from);
     };
 
+    /// Event callback that is triggered post token burn, used to revoke any approvals upon ownership change.
+    /// - Parameters:
+    ///     - token_id: `Nat` - The ID of the token that was transferred.
+    ///     - from: `?Account` - The previous owner's account.
+    ///     - to: `Account` - The new owner's account.
+    ///     - trx_id: `Nat` - The unique identifier for the transfer transaction.
+    private func token_burned(burn: BurnNotification, trx_id: Nat) : (){
+      debug if(debug_channel.announce) D.print("burntransfered was called " # debug_show((burn.token_id, burn.from, burn.to, trx_id)));
+      //clear all approvals for this token
+      //note: we do not have to log these revokes to the transaction log becasue ICRC30 defines that all approvals are revoked when a token is transfered.
+      ignore revoke_approvals(?burn.token_id, null, null, ?burn.from);
+    };
+
     //registers the private token_transfered event with the ICRC7 component so that approvals can be cleared when a token is transfered.
     environment.icrc7.register_token_transferred_listener("icrc30", token_transferred);
+    environment.icrc7.register_token_burn_listener("icrc30", token_burned);
 
     /// Revokes a single token transfer approval
     /// - Parameters:
@@ -1209,21 +1201,6 @@ module {
       };
     };
 
-    private func insert_map(top: ?Value, key: Text, val: Value): Result.Result<Value, Text> {
-      let foundTop = switch(top){
-        case(?val) val;
-        case(null) #Map([]);
-      };
-      switch(foundTop){
-        case(#Map(a_map)){
-          let vecMap = Vec.fromArray<(Text, Value)>(a_map);
-          Vec.add<(Text, Value)>(vecMap, (key, val));
-          return #ok(#Map(Vec.toArray(vecMap)));
-        };
-        case(_) return #err("bad map");
-      };
-    };
-
 
     /// approve the transfer of a token by a spender
     private func approve_transfer(environment: Environment, caller: Principal, token_id: ?Nat, approval: ApprovalInfo) : (?Nat, ApprovalResult) {
@@ -1246,7 +1223,7 @@ module {
       switch(testExpiresAt(approval.expires_at)){
         case(?null){};
         case(??val){
-          Vec.add(trx,("expires_at", #Nat(Nat64.toNat(val))));
+          Vec.add(trx,("exp", #Nat(Nat64.toNat(val))));
         };
         case(_){}; //unreachable if called from approve_transfers
       };
@@ -1270,7 +1247,7 @@ module {
               case(_){};
             };
           };
-          Vec.add(trx,("op", #Text("30approve_collection")));
+          Vec.add(trx,("op", #Text("30appr_coll")));
         };
         case(?token_id){
           
@@ -1286,7 +1263,7 @@ module {
           if(owner.subaccount != approval.from_subaccount) return (?token_id, #Err(#Unauthorized)); //from_subaccount must match owner;
 
           Vec.add(trx,("tid", #Nat(token_id)));
-          Vec.add(trx,("op", #Text("30approve_tokens")));
+          Vec.add(trx,("op", #Text("30appr")));
         };
       };
 
@@ -1365,7 +1342,7 @@ module {
       //todo: implment ledger;
       let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
         case(null){
-            switch(add_local_ledger(finaltxtop, finaltx)){
+            switch(environment.icrc7.add_local_ledger(finaltxtop, finaltx)){
               case(#ok(val)) val;
               case(#err(err)){
                 return(token_id,  #Err(#GenericError({error_code = 3849; message = err})));
@@ -1534,7 +1511,7 @@ module {
 
         Vec.add(trx,("tid", #Nat(token_id)));
         Vec.add(trx,("ts", #Nat(Int.abs(environment.get_time()))));
-        Vec.add(trx,("op", #Text("30xfer_from")));
+        Vec.add(trx,("op", #Text("30xfer")));
         
         Vec.add(trx,("from", environment.icrc7.accountToValue({owner = transferFromArgs.from.owner; subaccount = transferFromArgs.from.subaccount})));
         Vec.add(trx,("to", environment.icrc7.accountToValue({owner = transferFromArgs.to.owner; subaccount = transferFromArgs.to.subaccount})));

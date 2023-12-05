@@ -39,6 +39,7 @@ let baseCollection = {
   max_take_value = ?105;
   max_memo_size = ?512;
   permitted_drift = null;
+  burn_account = null;
   deployer = testOwner;
 };
 
