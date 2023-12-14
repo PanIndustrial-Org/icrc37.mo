@@ -13,7 +13,7 @@ import Text "mo:base/Text";
 import RepIndy "mo:rep-indy-hash";
 
 //todo: switch to mops
-import ICRC7 "mo:icrc7.mo";
+import ICRC7 "mo:icrc7-mo";
 
 module {
 
