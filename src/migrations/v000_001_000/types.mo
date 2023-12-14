@@ -262,7 +262,6 @@ module {
 
   public type TokenApproval = {
     token_id: Nat;
-    //todo: reconcile case belo
     approval_info: ApprovalInfo;
   };
 
@@ -282,15 +281,15 @@ module {
     get_time : () -> Int;
     refresh_state: () -> State;
 
-    can_approve_token : ?((trx: Transaction, trxtop: ?Transaction, notificication: TokenApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: TokenApprovalNotification), Text>);
+    can_approve_token : ?((trx: Transaction, trxtop: ?Transaction, notification: TokenApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notification: TokenApprovalNotification), Text>);
 
-    can_approve_collection : ?((trx: Transaction, trxtop: ?Transaction, notificication: CollectionApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: CollectionApprovalNotification), Text>);
+    can_approve_collection : ?((trx: Transaction, trxtop: ?Transaction, notification: CollectionApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notification: CollectionApprovalNotification), Text>);
 
-    can_revoke_token_approval : ?((trx: Transaction, trxtop: ?Transaction, notificication: RevokeTokenNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: RevokeTokenNotification), Text>);
+    can_revoke_token_approval : ?((trx: Transaction, trxtop: ?Transaction, notification: RevokeTokenNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notification: RevokeTokenNotification), Text>);
 
-    can_revoke_collection_approval : ?((trx: Transaction, trxtop: ?Transaction, notificication: RevokeCollectionNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: RevokeCollectionNotification), Text>);
+    can_revoke_collection_approval : ?((trx: Transaction, trxtop: ?Transaction, notification: RevokeCollectionNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notification: RevokeCollectionNotification), Text>);
 
-    can_transfer_from : ?((trx: Transaction, trxtop: ?Transaction, notificication: TransferFromNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notificication: TransferFromNotification), Text>);
+    can_transfer_from : ?((trx: Transaction, trxtop: ?Transaction, notification: TransferFromNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notification: TransferFromNotification), Text>);
   };
 
   public func approvalEquals(x: (?Nat, Account), y: (?Nat, Account)) : Bool{
