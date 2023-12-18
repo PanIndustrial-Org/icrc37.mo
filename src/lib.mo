@@ -300,7 +300,7 @@ module {
     };
 
     /// Returns the collection-level approvals that exist for the specified owner. The result is paginated, the mechanics of pagination are analogous to icrc7_tokens using prev and take to control pagination. The prev parameter is a CollectionApproval with the meaning that CollectionApprovals following the provided one are returned, based on a sorting order over CollectionApprovals implemented by the ledger.
-    public func get_collection_approvals( owner : Account, prev : ?CollectionApproval, take : ?Nat) : async [CollectionApproval] {
+    public func get_collection_approvals( owner : Service.Account, prev : ?Service.CollectionApproval, take : ?Nat) : async [Service.CollectionApproval] {
       switch (collection_approvals(owner, prev, take)) {
         case (#ok(val)) val;
         case (#err(err)) D.trap(err);
