@@ -280,7 +280,7 @@ module {
     };
 
     /// Returns the collection-level approvals that exist for the specified owner. The result is paginated, the mechanics of pagination are analogous to icrc7_tokens using prev and take to control pagination. The prev parameter is a CollectionApproval with the meaning that CollectionApprovals following the provided one are returned, based on a sorting order over CollectionApprovals implemented by the ledger.
-    public func get_collection_approvals( owner : Service.Account, prev : ?Service.CollectionApproval, take : ?Nat) : async [Service.CollectionApproval] {
+    public func get_collection_approvals( owner : Service.Account, prev : ?Service.CollectionApproval, take : ?Nat) : [Service.CollectionApproval] {
       switch (collection_approvals(owner, prev, take)) {
         case (#ok(val)) val;
         case (#err(err)) D.trap(err);
@@ -290,7 +290,7 @@ module {
     // updates
 
     /// Transfers one or more tokens from the from account to the to account. The transfer can be initiated by the holder of the tokens (the holder has an implicit approval for acting on all their tokens on their own behalf) or a party that has been authorized by the holder to execute transfers using icrc30_approve_tokens or icrc30_approve_collection. The spender_subaccount is used to identify the spender. The spender is an account comprised of the principal calling this method and the parameter spender_subaccount. Omitting the spender_subaccount means using the default subaccount.
-    public func transfer_tokens(caller : Principal, args : Service.TransferFromArgs) : Service.TransferFromResponse {
+    public func transfer_from(caller : Principal, args : Service.TransferFromArgs) : Service.TransferFromResponse {
       switch (transfer(caller, args)) {
         case (#ok(val)) val;
         case (#err(err)) D.trap(err);
