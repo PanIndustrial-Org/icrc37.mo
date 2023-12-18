@@ -1442,14 +1442,14 @@ module {
 
       debug if(debug_channel.approve) D.print("adding to token approvals " # debug_show(token_id, approval.spender));
       
-      ignore Map.add<(?Nat,Account),ApprovalInfo>(state.token_approvals, apphash, (token_id, approval.spender), approval);
+      ignore Map.put<(?Nat,Account),ApprovalInfo>(state.token_approvals, apphash, (token_id, approval.spender), approval);
 
       //populate the index
       let existingIndex = switch(Map.get<?Nat, Set.Set<Account>>(state.indexes.token_to_approval_account, nullnathash, token_id)){
         case(null){
           debug if(debug_channel.approve) D.print("adding new index " # debug_show(token_id));
           let newIndex = Set.new<Account>();
-          ignore Map.add<?Nat,Set.Set<Account>>(state.indexes.token_to_approval_account, nullnathash, token_id, newIndex);
+          ignore Map.put<?Nat,Set.Set<Account>>(state.indexes.token_to_approval_account, nullnathash, token_id, newIndex);
           newIndex;
         };
         case(?val) val;
@@ -1463,7 +1463,7 @@ module {
         case(null){
           debug if(debug_channel.approve) D.print("adding new index " # debug_show({owner = caller; subaccount = approval.from_subaccount}));
           let newIndex = Set.new<(?Nat, Account)>();
-          ignore Map.add<Account,Set.Set<(?Nat, Account)>>(state.indexes.owner_to_approval_account, ahash, {owner = caller; subaccount = approval.from_subaccount}, newIndex);
+          ignore Map.put<Account,Set.Set<(?Nat, Account)>>(state.indexes.owner_to_approval_account, ahash, {owner = caller; subaccount = approval.from_subaccount}, newIndex);
           newIndex;
         };
         case(?val) val;
