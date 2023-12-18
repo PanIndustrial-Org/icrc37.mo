@@ -167,19 +167,6 @@ module {
     return false;
   };
 
-  public type Service = actor {
-    icrc30_metadata : shared query () -> async [(Text, Value)];
-    icrc30_max_approvals_per_token_or_collection: shared query ()-> async ?Nat;
-    icrc30_max_revoke_approvals:  shared query ()-> async ?Nat;
-    icrc30_is_approved : shared query (spender: Account, from_subaccount: ?Blob, token_id : Nat) -> async Bool;
-    icrc30_get_approvals : shared query (token_ids : [Nat], prev : ?TokenApproval, take :  ?Nat) -> async [TokenApproval];
-    icrc30_get_collection_approvals : shared query (owner : Account, prev : ?CollectionApproval, take : ?Nat) -> async [CollectionApproval];
-    icrc30_transfer_from: shared (TransferFromArgs)-> async TransferFromResponse;
-    icrc30_approve: shared (token_ids: [Nat], approval: ApprovalInfo)-> async ApprovalResponse;
-    icrc30_approve_collection: shared (approval: ApprovalInfo)-> async ApprovalCollectionResponse;
-    icrc30_revoke_token_approvals: shared (RevokeTokensArgs) -> async RevokeTokensResponse;
-    icrc30_revoke_collection_approvals: shared (RevokeCollectionArgs) -> async RevokeCollectionResponse;
-  };
 
   /// #class ICRC30 
   /// Initializes the state of the ICRC30 class.
@@ -1364,14 +1351,14 @@ module {
 
       debug if(debug_channel.approve) D.print("adding to token approvals " # debug_show(token_id, approval.spender));
       
-      ignore Map.add<(?Nat,Account),ApprovalInfo>(state.token_approvals, apphash, (token_id, approval.spender), approval);
+      ignore Map.put<(?Nat,Account),ApprovalInfo>(state.token_approvals, apphash, (token_id, approval.spender), approval);
 
       //populate the index
       let existingIndex = switch(Map.get<?Nat, Set.Set<Account>>(state.indexes.token_to_approval_account, nullnathash, token_id)){
         case(null){
           debug if(debug_channel.approve) D.print("adding new index " # debug_show(token_id));
           let newIndex = Set.new<Account>();
-          ignore Map.add<?Nat,Set.Set<Account>>(state.indexes.token_to_approval_account, nullnathash, token_id, newIndex);
+          ignore Map.put<?Nat,Set.Set<Account>>(state.indexes.token_to_approval_account, nullnathash, token_id, newIndex);
           newIndex;
         };
         case(?val) val;
@@ -1385,7 +1372,7 @@ module {
         case(null){
           debug if(debug_channel.approve) D.print("adding new index " # debug_show({owner = caller; subaccount = approval.from_subaccount}));
           let newIndex = Set.new<(?Nat, Account)>();
-          ignore Map.add<Account,Set.Set<(?Nat, Account)>>(state.indexes.owner_to_approval_account, ahash, {owner = caller; subaccount = approval.from_subaccount}, newIndex);
+          ignore Map.put<Account,Set.Set<(?Nat, Account)>>(state.indexes.owner_to_approval_account, ahash, {owner = caller; subaccount = approval.from_subaccount}, newIndex);
           newIndex;
         };
         case(?val) val;
