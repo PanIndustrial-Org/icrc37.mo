@@ -16,7 +16,7 @@ stablebuffer_1_3_0 = "https://github.com/canscale/StableBuffer#v1.3.0@acdde6bb5b
 encoding_0_4_1 = "https://github.com/aviate-labs/encoding.mo#v0.4.1@2711d18727e954b11afc0d37945608512b5fbce2"
 vector = "0.2.0"
 rep-indy-hash = "0.1.1"
-icrc7-mo = "https://github.com/letmejustputthishere/icrc7.mo#fix/token-metadata@171aa9d3adb4b22feb3bc64e61e6d8e214c65f67"
+"icrc7-mo" = "https://github.com/PanIndustrial-Org/icrc7.mo#master@c5346c5e9b42b96b1c0aa6d0d9bc0211a5c178c0"
 
 [dev-dependencies]
 test = "1.1.1"
