@@ -291,6 +291,21 @@ module {
       };
     };
 
+    /// Returns the token-level approvals that exist for the given vector of token_ids. The result is paginated, the mechanics of pagination are analogous to icrc7_tokens using prev and take to control pagination, with prev being of type TokenApproval. Note that take refers to the number of returned elements to be requested. The prev parameter is a TokenApproval element with the meaning that TokenApprovals following the provided one are returned, based on a sorting order over TokenApprovals implemented by the ledger.
+    public func get_token_approvals(token_ids : [Nat], prev: ?Service.TokenApproval, take: ?Nat) : [Service.TokenApproval] {
+      switch (get_approvals(token_ids, prev, take)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+    };
+
+    public func approve_tokens (caller : Principal, token_ids : [Nat], approval: Service.ApprovalInfo) : Service.ApprovalResponse {
+      switch (approve_transfers(caller, token_ids, approval)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+    };
+
     /// Gets ledger information for the associated ICRC-30 NFT collection.
     /// - Returns: `LedgerInfo` - The current ledger information for the ICRC-30 NFT collection.
     public func get_ledger_info() :  LedgerInfo {
@@ -450,7 +465,7 @@ module {
     ///     - prev: `?TokenApproval` - An optional approval to use as the starting point for pagination.
     ///     - take: `?Nat` - The number of approvals to be fetched, effectively the page size.
     /// - Returns: `Result<[TokenApproval], Text>` - Either a list of token approvals or an error message.
-    public func get_token_approvals(token_ids: [Nat], prev: ?TokenApproval, take: ?Nat) : Result.Result<[TokenApproval], Text>{
+    public func get_approvals(token_ids: [Nat], prev: ?TokenApproval, take: ?Nat) : Result.Result<[TokenApproval], Text>{
 
       
       if(token_ids.size() > environment.icrc7.get_ledger_info().max_query_batch_size) return #err("too many tokenids in qurey. Max is " # Nat.toText(environment.icrc7.get_ledger_info().max_query_batch_size));

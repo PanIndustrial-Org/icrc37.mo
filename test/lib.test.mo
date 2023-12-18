@@ -1,5 +1,5 @@
 import ICRC30 "../src";
-import ICRC7 "mo:icrc7-mo";
+import ICRC7 "mo:icrc7.mo";
 import Principal "mo:base/Principal";
 import CandyTypesLib "mo:candy_0_3_0/types";
 import CandyConv  "mo:candy_0_3_0/conversion";
@@ -603,7 +603,7 @@ test("Transfer a token to another account after approval", func() {
 
   //make sure the approval was cleared
   // Query for the owner of the token after transfer
-  let approval_list_after = icrc30.get_token_approvals([approvedTokenId], null, null);
+  let approval_list_after = icrc30.get_approvals([approvedTokenId], null, null);
 
     (switch(approval_list_after) {
       case (#ok(list)) {
@@ -884,7 +884,7 @@ test("Revoke a single approval on a token", func() {
 
   D.print("approvalResponses2" # debug_show(approvalResponses2));
 
-  let #ok(tokenApprovalsAfterRevocation2) = icrc30.get_token_approvals([approvedTokenId], null, null) else return assert(false);
+  let #ok(tokenApprovalsAfterRevocation2) = icrc30.get_approvals([approvedTokenId], null, null) else return assert(false);
 
   D.print("approval list" # debug_show(tokenApprovalsAfterRevocation2));
 
@@ -917,7 +917,7 @@ test("Revoke a single approval on a token", func() {
   assert(not icrc30.is_approved(spender, null, 1));
 
   // Query for approvals of the token after revocation
-  let #ok(tokenApprovalsAfterRevocation) = icrc30.get_token_approvals([approvedTokenId], null, null) else return assert(false);
+  let #ok(tokenApprovalsAfterRevocation) = icrc30.get_approvals([approvedTokenId], null, null) else return assert(false);
 
   D.print("tokenApprovalsAfterRevocation" # debug_show(tokenApprovalsAfterRevocation));
 
@@ -970,7 +970,7 @@ test("Revoke all approval on a token", func() {
 
   D.print("approvalResponses2" # debug_show(approvalResponses2));
 
-  let #ok(tokenApprovalsAfterRevocation2) = icrc30.get_token_approvals([approvedTokenId], null, null) else return assert(false);
+  let #ok(tokenApprovalsAfterRevocation2) = icrc30.get_approvals([approvedTokenId], null, null) else return assert(false);
 
   D.print("approval list" # debug_show(tokenApprovalsAfterRevocation2));
 
@@ -1003,7 +1003,7 @@ test("Revoke all approval on a token", func() {
   ); // "Revoke result indicates success"
 
   // Query for approvals of the token after revocation
-  let #ok(tokenApprovalsAfterRevocation) = icrc30.get_token_approvals([approvedTokenId], null, null) else return assert(false);
+  let #ok(tokenApprovalsAfterRevocation) = icrc30.get_approvals([approvedTokenId], null, null) else return assert(false);
 
   D.print("tokenApprovalsAfterRevocation" # debug_show(tokenApprovalsAfterRevocation));
 

@@ -186,10 +186,10 @@ module {
     icrc30_max_approvals_per_token_or_collection: shared query ()-> async ?Nat;
     icrc30_max_revoke_approvals:  shared query ()-> async ?Nat;
     icrc30_is_approved : shared query (spender: Account, from_subaccount: ?Blob, token_id : Nat) -> async Bool;
-    icrc30_get_approvals : shared query (token_ids : [Nat], prev : ?TokenApproval, take :  ?Nat) -> async [TokenApproval];
+    icrc30_get_token_approvals : shared query (token_ids : [Nat], prev : ?TokenApproval, take :  ?Nat) -> async [TokenApproval];
     icrc30_get_collection_approvals : shared query (owner : Account, prev : ?CollectionApproval, take : ?Nat) -> async [CollectionApproval];
     icrc30_transfer_from: shared (TransferFromArgs)-> async TransferFromResponse;
-    icrc30_approve: shared (token_ids: [Nat], approval: ApprovalInfo)-> async ApprovalResponse;
+    icrc30_approve_tokens: shared (token_ids: [Nat], approval: ApprovalInfo)-> async ApprovalResponse;
     icrc30_approve_collection: shared (approval: ApprovalInfo)-> async ApprovalCollectionResponse;
     icrc30_revoke_token_approvals: shared (RevokeTokensArgs) -> async RevokeTokensResponse;
     icrc30_revoke_collection_approvals: shared (RevokeCollectionArgs) -> async RevokeCollectionResponse;
