@@ -13,7 +13,7 @@ import Text "mo:base/Text";
 import RepIndy "mo:rep-indy-hash";
 
 //todo: switch to mops
-import ICRC7 "mo:icrc7-mo";
+import ICRC7 "mo:icrc7.mo";
 import Service "service";
 
 module {
@@ -299,6 +299,14 @@ module {
       };
     };
 
+    /// Returns the collection-level approvals that exist for the specified owner. The result is paginated, the mechanics of pagination are analogous to icrc7_tokens using prev and take to control pagination. The prev parameter is a CollectionApproval with the meaning that CollectionApprovals following the provided one are returned, based on a sorting order over CollectionApprovals implemented by the ledger.
+    public func get_collection_approvals( owner : Account, prev : ?CollectionApproval, take : ?Nat) : async [CollectionApproval] {
+      switch (collection_approvals(owner, prev, take)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+    };
+
     /// Entitles a spender, indicated through an Account, to transfer NFTs on behalf of the caller of this method from account { owner = caller; subaccount = from_subaccount }, where caller is the caller of this method (and also the owner principal of the tokens that are subject to approval) and from_subaccount is the subaccount of the token owner principal the approval should apply to (i.e., the subaccount which the tokens must be held on and can be transferred out from). Note that the from_subaccount parameter needs to be explicitly specified because accounts are a primary concept in this standard and thereby the from_subaccount needs to be specified as part of the account that holds the token. The expires_at value specifies the expiration date of the approval, the memo parameter is an arbitrary blob that is not interpreted by the ledger. The created_at_time field specifies when the approval has been created. The parameter token_ids specifies a batch of tokens to apply the approval to.
     public func approve_tokens (caller : Principal, token_ids : [Nat], approval: Service.ApprovalInfo) : Service.ApprovalResponse {
       switch (approve_transfers(caller, token_ids, approval)) {
@@ -547,7 +555,7 @@ module {
     ///     - prev: `?CollectionApproval` - An optional approval to use as the starting point for pagination.
     ///     - take: `?Nat` - The number of approvals to be fetched, effectively the page size.
     /// - Returns: `Result<[CollectionApproval], Text>` - Either a list of collection approvals or an error message.
-    public func get_collection_approvals(owner: Account, prev: ?CollectionApproval, take: ?Nat) : Result.Result<[CollectionApproval], Text>{
+    public func collection_approvals(owner: Account, prev: ?CollectionApproval, take: ?Nat) : Result.Result<[CollectionApproval], Text>{
       
       let results = Vec.new<CollectionApproval>();
 
