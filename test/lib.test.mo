@@ -575,7 +575,7 @@ test("Transfer a token to another account after approval", func() {
   let approvalResponses = icrc30.approve_transfers(tokenOwner, [approvedTokenId], approvalInfo);
 
   // ACT: Initiate the transfer of the approved token
-  let #ok(#Ok(transferResponse)) = icrc30.transfer_from(spender.owner, transferArgs) else return assert(false);
+  let #ok(#Ok(transferResponse)) = icrc30.transfer(spender.owner, transferArgs) else return assert(false);
 
   D.print("result is " # debug_show(approvalResponses, transferResponse));
 
@@ -655,7 +655,7 @@ test("Transfer a token to another account after collection approval", func() {
   assert(not icrc30.is_approved(spender, ?Blob.fromArray([1]), 1));
 
   // ACT: Initiate the transfer of the approved token
-  let #ok(#Ok(transferResponse)) = icrc30.transfer_from(spender.owner, transferArgs) else return assert(false);
+  let #ok(#Ok(transferResponse)) = icrc30.transfer(spender.owner, transferArgs) else return assert(false);
 
   // ASSERT: Ensure that the transfer has been successful
   assert(
@@ -820,7 +820,7 @@ test("Transfer a token to another account after collection approval", func() {
   assert(not icrc30.is_approved(spender, ?Blob.fromArray([1]), 1));
 
   // ACT: Initiate the transfer of the approved token
-  let #ok(#Ok(transferResponse)) = icrc30.transfer_from(spender.owner, transferArgs) else return assert(false);
+  let #ok(#Ok(transferResponse)) = icrc30.transfer(spender.owner, transferArgs) else return assert(false);
 
   // ASSERT: Ensure that the transfer has been successful
   assert(

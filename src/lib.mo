@@ -221,16 +221,6 @@ module {
 
     // queries
 
-    /// Returns the maximum number of approvals this ledger implementation allows to be active per token or per principal for the collection.
-    public func max_approvals_per_token_or_collection() : ?Nat {
-      return ?get_ledger_info().max_approvals_per_token_or_collection;
-    };
-
-    /// Returns the maximum number of approvals this ledger implementation allows to be active per token or per principal for the collection.
-    public func max_revoke_approvals() : ?Nat {
-      return ?get_ledger_info().max_revoke_approvals;
-    };
-
     /// Returns the approval-related metadata of the ledger implementation. The metadata representation is analogous to that of ICRC-7 using the Value type to represent properties.
     public func metadata() : Service.MetadataResponse {
       let results = Vec.new<(Text, Value)>();
@@ -248,10 +238,67 @@ module {
       Vec.toArray(results)
     };
 
+    /// Returns the maximum number of approvals this ledger implementation allows to be active per token or per principal for the collection.
+    public func max_approvals_per_token_or_collection() : ?Nat {
+      return ?get_ledger_info().max_approvals_per_token_or_collection;
+    };
+
+    /// Returns the maximum number of approvals this ledger implementation allows to be active per token or per principal for the collection.
+    public func max_revoke_approvals() : ?Nat {
+      return ?get_ledger_info().max_revoke_approvals;
+    };
+
+    /// Returns true if an active approval exists that allows the spender to transfer the token token_id from the given from_subaccount, false otherwise.
+    public  func is_approved(spender : Account, from_subaccount: ?Blob, token_id: Nat) : Bool {
+
+      debug if(debug_channel.announce) D.print("is_approved " # debug_show(spender, from_subaccount, token_id));
+
+      //look in collection approvals
+      switch(Map.get<(?Nat,Account), ApprovalInfo>(state.token_approvals, apphash, (null, spender))){
+        case(null){};
+        case(?val){
+          if(val.from_subaccount == from_subaccount) return true;
+        };
+      };
+       
+      //look in direct approvals
+      switch(Map.get<(?Nat,Account), ApprovalInfo>(state.token_approvals, apphash, (?token_id, spender))){
+        case(null){};
+        case(?val){
+          if(val.from_subaccount == from_subaccount) return true;
+        };
+      };
+      return false;
+    };
+
+    /// Returns the token-level approvals that exist for the given vector of token_ids. The result is paginated, the mechanics of pagination are analogous to icrc7_tokens using prev and take to control pagination, with prev being of type TokenApproval. Note that take refers to the number of returned elements to be requested. The prev parameter is a TokenApproval element with the meaning that TokenApprovals following the provided one are returned, based on a sorting order over TokenApprovals implemented by the ledger.
+    public func get_token_approvals(token_ids : [Nat], prev: ?Service.TokenApproval, take: ?Nat) : [Service.TokenApproval] {
+      switch (get_approvals(token_ids, prev, take)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+    };
+
+    /// Returns the collection-level approvals that exist for the specified owner. The result is paginated, the mechanics of pagination are analogous to icrc7_tokens using prev and take to control pagination. The prev parameter is a CollectionApproval with the meaning that CollectionApprovals following the provided one are returned, based on a sorting order over CollectionApprovals implemented by the ledger.
+    public func get_collection_approvals( owner : Service.Account, prev : ?Service.CollectionApproval, take : ?Nat) : async [Service.CollectionApproval] {
+      switch (collection_approvals(owner, prev, take)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+    };
+
     // updates
 
+    /// Transfers one or more tokens from the from account to the to account. The transfer can be initiated by the holder of the tokens (the holder has an implicit approval for acting on all their tokens on their own behalf) or a party that has been authorized by the holder to execute transfers using icrc30_approve_tokens or icrc30_approve_collection. The spender_subaccount is used to identify the spender. The spender is an account comprised of the principal calling this method and the parameter spender_subaccount. Omitting the spender_subaccount means using the default subaccount.
+    public func transfer_tokens(caller : Principal, args : Service.TransferFromArgs) : Service.TransferFromResponse {
+      switch (transfer(caller, args)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+    };
+
     /// Entitles a spender, indicated through an Account, to transfer NFTs on behalf of the caller of this method from account { owner = caller; subaccount = from_subaccount }, where caller is the caller of this method (and also the owner principal of the tokens that are subject to approval) and from_subaccount is the subaccount of the token owner principal the approval should apply to (i.e., the subaccount which the tokens must be held on and can be transferred out from). Note that the from_subaccount parameter needs to be explicitly specified because accounts are a primary concept in this standard and thereby the from_subaccount needs to be specified as part of the account that holds the token. The expires_at value specifies the expiration date of the approval, the memo parameter is an arbitrary blob that is not interpreted by the ledger. The created_at_time field specifies when the approval has been created. The parameter token_ids specifies a batch of tokens to apply the approval to.
-    public func approve(caller : Principal, token_ids : [Nat], approval : Service.ApprovalInfo) : Service.ApprovalResponse {
+    public func approve_tokens (caller : Principal, token_ids : [Nat], approval: Service.ApprovalInfo) : Service.ApprovalResponse {
       switch (approve_transfers(caller, token_ids, approval)) {
         case (#ok(val)) val;
         case (#err(err)) D.trap(err);
@@ -286,30 +333,6 @@ module {
     /// Revokes collection-level approvals from the set of active approvals. The from_subaccount parameter specifies the token owner's subaccount to which the approval applies, the spender the party for which the approval is to be revoked. A null value of from_subaccount indicates the default subaccount. A null value for spender means to revoke approvals with any value for the spender.
     public func revoke_collection_approvals(caller : Principal, args: Service.RevokeCollectionArgs) : Service.RevokeCollectionResponse {
       switch (revoke_collection(caller, args)) {
-        case (#ok(val)) val;
-        case (#err(err)) D.trap(err);
-      };
-    };
-
-    /// Returns the token-level approvals that exist for the given vector of token_ids. The result is paginated, the mechanics of pagination are analogous to icrc7_tokens using prev and take to control pagination, with prev being of type TokenApproval. Note that take refers to the number of returned elements to be requested. The prev parameter is a TokenApproval element with the meaning that TokenApprovals following the provided one are returned, based on a sorting order over TokenApprovals implemented by the ledger.
-    public func get_token_approvals(token_ids : [Nat], prev: ?Service.TokenApproval, take: ?Nat) : [Service.TokenApproval] {
-      switch (get_approvals(token_ids, prev, take)) {
-        case (#ok(val)) val;
-        case (#err(err)) D.trap(err);
-      };
-    };
-
-    /// Returns the collection-level approvals that exist for the specified owner. The result is paginated, the mechanics of pagination are analogous to icrc7_tokens using prev and take to control pagination. The prev parameter is a CollectionApproval with the meaning that CollectionApprovals following the provided one are returned, based on a sorting order over CollectionApprovals implemented by the ledger.
-    public func get_collection_approvals( owner : Service.Account, prev : ?Service.CollectionApproval, take : ?Nat) : async [Service.CollectionApproval] {
-      switch (collection_approvals(owner, prev, take)) {
-        case (#ok(val)) val;
-        case (#err(err)) D.trap(err);
-      };
-    };
-
-    /// Entitles a spender, indicated through an Account, to transfer NFTs on behalf of the caller of this method from account { owner = caller; subaccount = from_subaccount }, where caller is the caller of this method (and also the owner principal of the tokens that are subject to approval) and from_subaccount is the subaccount of the token owner principal the approval should apply to (i.e., the subaccount which the tokens must be held on and can be transferred out from). Note that the from_subaccount parameter needs to be explicitly specified because accounts are a primary concept in this standard and thereby the from_subaccount needs to be specified as part of the account that holds the token. The expires_at value specifies the expiration date of the approval, the memo parameter is an arbitrary blob that is not interpreted by the ledger. The created_at_time field specifies when the approval has been created. The parameter token_ids specifies a batch of tokens to apply the approval to.
-    public func approve_tokens (caller : Principal, token_ids : [Nat], approval: Service.ApprovalInfo) : Service.ApprovalResponse {
-      switch (approve_transfers(caller, token_ids, approval)) {
         case (#ok(val)) val;
         case (#err(err)) D.trap(err);
       };
@@ -437,36 +460,6 @@ module {
     };
 
 
-    /// Checks if the specified account is approved for the provided token.
-    /// - Parameters:
-    ///     - spender: `Account` - The account whose approval status is being queried.
-    ///     - from_subaccount: `?Blob` - The optional subaccount from which the check is done.
-    ///     - token_id: `Nat` - The ID of the token being checked.
-    /// - Returns: `Bool` - A boolean indicating if the spender is approved for the specified token.
-    public  func is_approved(spender : Account, from_subaccount: ?Blob, token_id: Nat) : Bool {
-
-      debug if(debug_channel.announce) D.print("is_approved " # debug_show(spender, from_subaccount, token_id));
-
-      //look in collection approvals
-      switch(Map.get<(?Nat,Account), ApprovalInfo>(state.token_approvals, apphash, (null, spender))){
-        case(null){};
-        case(?val){
-          if(val.from_subaccount == from_subaccount) return true;
-        };
-      };
-       
-
-      //look in direct approvals
-      
-      switch(Map.get<(?Nat,Account), ApprovalInfo>(state.token_approvals, apphash, (?token_id, spender))){
-        case(null){};
-        case(?val){
-          if(val.from_subaccount == from_subaccount) return true;
-        };
-      };
-       
-      return false;
-    };
 
     /// Gets token approvals given specific token IDs and paginates results based on previous approvals and page size.
     /// - Parameters:
@@ -1674,7 +1667,7 @@ module {
     ///   }
     /// );
     /// ```
-    public func transfer_from(caller: Principal, transferFromArgs: TransferFromArgs) : Result.Result<TransferFromResponse, Text> {
+    public func transfer(caller: Principal, transferFromArgs: TransferFromArgs) : Result.Result<TransferFromResponse, Text> {
 
       //check that the batch isn't too big
       let safe_batch_size = environment.icrc7.get_ledger_info().max_update_batch_size;
@@ -1704,8 +1697,8 @@ module {
 
       
       //make sure the approval is not too old or too far in the future
-      let created_at_time = switch(testCreatedAt(transferFromArgs.created_at_time, environment)){
-        case(#ok(val)) val;
+      switch(testCreatedAt(transferFromArgs.created_at_time, environment)){
+        case(#ok(val)) {};
         case(#Err(#TooOld)) return #ok(#Err(#TooOld));
         case(#Err(#InTheFuture(val))) return  #ok(#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
       };
