@@ -14,6 +14,7 @@ import RepIndy "mo:rep-indy-hash";
 
 //todo: switch to mops
 import ICRC7 "mo:icrc7.mo";
+import Service "service";
 
 module {
 
@@ -167,19 +168,7 @@ module {
     return false;
   };
 
-  public type Service = actor {
-    icrc30_metadata : shared query () -> async [(Text, Value)];
-    icrc30_max_approvals_per_token_or_collection: shared query ()-> async ?Nat;
-    icrc30_max_revoke_approvals:  shared query ()-> async ?Nat;
-    icrc30_is_approved : shared query (spender: Account, from_subaccount: ?Blob, token_id : Nat) -> async Bool;
-    icrc30_get_approvals : shared query (token_ids : [Nat], prev : ?TokenApproval, take :  ?Nat) -> async [TokenApproval];
-    icrc30_get_collection_approvals : shared query (owner : Account, prev : ?CollectionApproval, take : ?Nat) -> async [CollectionApproval];
-    icrc30_transfer_from: shared (TransferFromArgs)-> async TransferFromResponse;
-    icrc30_approve: shared (token_ids: [Nat], approval: ApprovalInfo)-> async ApprovalResponse;
-    icrc30_approve_collection: shared (approval: ApprovalInfo)-> async ApprovalCollectionResponse;
-    icrc30_revoke_token_approvals: shared (RevokeTokensArgs) -> async RevokeTokensResponse;
-    icrc30_revoke_collection_approvals: shared (RevokeCollectionArgs) -> async RevokeCollectionResponse;
-  };
+  public type Service = Service.Service;
 
   /// #class ICRC30 
   /// Initializes the state of the ICRC30 class.
@@ -229,6 +218,78 @@ module {
 
     public let migrate = Migration.migrate;
     public let TokenErrorToCollectionError = MigrationTypes.Current.TokenErrorToCollectionError;
+
+    // queries
+
+    /// Returns the maximum number of approvals this ledger implementation allows to be active per token or per principal for the collection.
+    public func max_approvals_per_token_or_collection() : ?Nat {
+      return ?get_ledger_info().max_approvals_per_token_or_collection;
+    };
+
+    /// Returns the maximum number of approvals this ledger implementation allows to be active per token or per principal for the collection.
+    public func max_revoke_approvals() : ?Nat {
+      return ?get_ledger_info().max_revoke_approvals;
+    };
+
+    /// Returns the approval-related metadata of the ledger implementation. The metadata representation is analogous to that of ICRC-7 using the Value type to represent properties.
+    public func metadata() : Service.MetadataResponse {
+      let results = Vec.new<(Text, Value)>();
+
+      switch (max_approvals_per_token_or_collection()) {
+        case (?val) Vec.add(results, ("icrc30:max_approvals_per_token_or_collection", #Nat(val)));
+        case (null) {};
+      };
+
+      switch (max_revoke_approvals()) {
+        case (?val) Vec.add(results, ("icrc30:max_revoke_approvals", #Nat(val)));
+        case (null) {};
+      };
+
+      Vec.toArray(results)
+    };
+
+    // updates
+
+    /// Entitles a spender, indicated through an Account, to transfer NFTs on behalf of the caller of this method from account { owner = caller; subaccount = from_subaccount }, where caller is the caller of this method (and also the owner principal of the tokens that are subject to approval) and from_subaccount is the subaccount of the token owner principal the approval should apply to (i.e., the subaccount which the tokens must be held on and can be transferred out from). Note that the from_subaccount parameter needs to be explicitly specified because accounts are a primary concept in this standard and thereby the from_subaccount needs to be specified as part of the account that holds the token. The expires_at value specifies the expiration date of the approval, the memo parameter is an arbitrary blob that is not interpreted by the ledger. The created_at_time field specifies when the approval has been created. The parameter token_ids specifies a batch of tokens to apply the approval to.
+    public func approve(caller : Principal, token_ids : [Nat], approval : Service.ApprovalInfo) : Service.ApprovalResponse {
+      switch (approve_transfers(caller, token_ids, approval)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+    };
+
+    /// Entitles a spender, indicated through an Account, to transfer any NFT of the collection hosted on this ledger and owned by the caller at the time of transfer on behalf of the caller of this method from account { owner = caller; subaccount = from_subaccount }, where caller is the caller of this method and from_subaccount is the subaccount of the token owner principal the approval should apply to (i.e., the subaccount which tokens the approval should apply to must be held on and can be transferred out from). Note that the from_subaccount parameter needs to be explicitly specified not only because accounts are a primary concept in this standard, but also because the approval applies to the collection, i.e., all tokens on the ledger the caller holds, and those tokens may be held on different subaccounts. The expires_at value specifies the expiration date of the approval, the memo parameter is an arbitrary blob that is not interpreted by the ledger. The created_at_time field specifies when the approval has been created.
+    public func approve_collection(caller: Principal, approval : Service.ApprovalInfo) : Service.ApprovalCollectionResponse {
+      let result : ApprovalResult = switch (approve_collection_transfers(caller, approval)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+
+      switch (result) {
+        case (#Err(val)) {
+          return (#Err(TokenErrorToCollectionError(val)));
+        };
+        case (#Ok(val)) {
+          return #Ok(val);
+        };
+      };
+    };
+
+    /// Revokes the specified approvals for tokens given by token_ids from the set of active approvals. The from_subaccount parameter specifies the token owner's subaccount to which the approval applies, the spender the party for which the approval is to be revoked. A null value of from_subaccount indicates the default subaccount. A null value for spender means to revoke approvals with any value for the spender.
+    public func revoke_token_approvals(caller : Principal, args : Service.RevokeTokensArgs) : Service.RevokeTokensResponse{
+      switch (revoke_token(caller, args)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+    };
+
+    /// Revokes collection-level approvals from the set of active approvals. The from_subaccount parameter specifies the token owner's subaccount to which the approval applies, the spender the party for which the approval is to be revoked. A null value of from_subaccount indicates the default subaccount. A null value for spender means to revoke approvals with any value for the spender.
+    public func revoke_collection_approvals(caller : Principal, args: Service.RevokeCollectionArgs) : Service.RevokeCollectionResponse {
+      switch (revoke_collection(caller, args)) {
+        case (#ok(val)) val;
+        case (#err(err)) D.trap(err);
+      };
+    };
 
     /// Gets ledger information for the associated ICRC-30 NFT collection.
     /// - Returns: `LedgerInfo` - The current ledger information for the ICRC-30 NFT collection.
@@ -843,7 +904,7 @@ module {
     ///     - caller: `Principal` - The principal of the user initiating the revoke action.
     ///     - revokeArgs: `RevokeCollectionArgs` - The arguments specifying the revoke action details.
     /// - Returns: `Result<RevokeCollectionResponse, Text>` - A result containing either the revoke collection response or an error message.
-    public func revoke_collection_approvals(caller : Principal, revokeArgs: RevokeCollectionArgs) : Result.Result<RevokeCollectionResponse, Text> {
+    public func revoke_collection(caller : Principal, revokeArgs: RevokeCollectionArgs) : Result.Result<RevokeCollectionResponse, Text> {
 
       //validate
 
@@ -1109,7 +1170,7 @@ module {
     ///     - caller: `Principal` - The principal of the user initiating the revoke action.
     ///     - revokeArgs: `RevokeCollectionArgs` - The arguments specifying the revoke action details.
     /// - Returns: `[Account]` - A list of spenders who were affected by the revocation.
-    public func revoke_token_approvals(caller : Principal, revokeArgs: RevokeTokensArgs) : Result.Result<RevokeTokensResponse, Text> {
+    public func revoke_token(caller : Principal, revokeArgs: RevokeTokensArgs) : Result.Result<RevokeTokensResponse, Text> {
 
       //validate
 
@@ -1157,7 +1218,7 @@ module {
     ///     - caller: `Principal` - The principal of the user initiating the approval operation.
     ///     - approval: `ApprovalInfo` - Approval settings including spender and optional expiry.
     /// - Returns: `Result<ApprovalResult, Text>` - A result that includes approval transaction ID or an error text.
-    public func approve_collection(caller: Principal, approval: ApprovalInfo) : Result.Result<ApprovalResult, Text> {
+    public func approve_collection_transfers(caller: Principal, approval: ApprovalInfo) : Result.Result<ApprovalResult, Text> {
 
       //test that the memo is not too large
       let ?(memo) = testMemo(approval.memo) else return #err("invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits");

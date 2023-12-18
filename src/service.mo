@@ -8,6 +8,12 @@ module {
     #Map : [(Text, Value)]; 
   };
 
+  public type Map = [(Text, Value)];
+
+  public type Metadata = Map;
+
+  public type MetadataResponse = Metadata;
+
   // Account Types
   public type Subaccount = Blob;
 
@@ -176,7 +182,7 @@ module {
   };
 
   public type Service = actor {
-    icrc30_metadata : shared query () -> async [(Text, Value)];
+    icrc30_metadata : shared query () -> async MetadataResponse;
     icrc30_max_approvals_per_token_or_collection: shared query ()-> async ?Nat;
     icrc30_max_revoke_approvals:  shared query ()-> async ?Nat;
     icrc30_is_approved : shared query (spender: Account, from_subaccount: ?Blob, token_id : Nat) -> async Bool;
