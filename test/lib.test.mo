@@ -1,5 +1,5 @@
 import ICRC30 "../src";
-import ICRC7 "mo:icrc7-mo";
+import ICRC7 "mo:icrc7.mo";
 import Principal "mo:base/Principal";
 import CandyTypesLib "mo:candy_0_3_0/types";
 import CandyConv  "mo:candy_0_3_0/conversion";
@@ -40,6 +40,7 @@ let baseCollection = {
   max_memo_size = ?512;
   permitted_drift = null;
   burn_account = null;
+  supported_standards = null;
   deployer = testOwner;
 };
 
@@ -388,7 +389,7 @@ test("Approve another account for all transfers in the collection and paginate q
   var prevApprovalInfo : ?ICRC30.CollectionApproval = null;  // Initial page
 
   // Collect all approval responses
-  let #ok(allApprovalResponses) = icrc30.get_collection_approvals({owner = testOwner; subaccount=null}, prevApprovalInfo, ?3) else return assert(false);
+  let #ok(allApprovalResponses) = icrc30.collection_approvals({owner = testOwner; subaccount=null}, prevApprovalInfo, ?3) else return assert(false);
 
    D.print("Approval page1: " # debug_show(allApprovalResponses));
 
@@ -400,7 +401,7 @@ test("Approve another account for all transfers in the collection and paginate q
 
   // Next  page test
   prevApprovalInfo := ?allApprovalResponses[2]; // Set the last approval as previous for the next paginated request
-  let #ok(allApprovalResponses2) = icrc30.get_collection_approvals({owner = testOwner; subaccount=null}, prevApprovalInfo, ?3);
+  let #ok(allApprovalResponses2) = icrc30.collection_approvals({owner = testOwner; subaccount=null}, prevApprovalInfo, ?3);
 
   D.print("Approval page2: " # debug_show(allApprovalResponses2));
 
@@ -482,7 +483,7 @@ test("Check approval errors when owner doesn't own tokens in the collection", fu
   };
 
   // Act: Attempt approval requests for non-existing token and owner without tokens
-  let #ok(approvalResponseOwnerWithoutTokens) = icrc30.approve_collection(spender1.owner, approvalInfo) else return assert(false);
+  let #ok(approvalResponseOwnerWithoutTokens) = icrc30.approve_collection_transfers(spender1.owner, approvalInfo) else return assert(false);
   
   D.print("Owner without tokens approval results: " # debug_show(approvalResponseOwnerWithoutTokens));
 
@@ -574,7 +575,7 @@ test("Transfer a token to another account after approval", func() {
   let approvalResponses = icrc30.approve_transfers(tokenOwner, [approvedTokenId], approvalInfo);
 
   // ACT: Initiate the transfer of the approved token
-  let #ok(#Ok(transferResponse)) = icrc30.transfer_from(spender.owner, transferArgs) else return assert(false);
+  let #ok(#Ok(transferResponse)) = icrc30.transfer(spender.owner, transferArgs) else return assert(false);
 
   D.print("result is " # debug_show(approvalResponses, transferResponse));
 
@@ -602,7 +603,7 @@ test("Transfer a token to another account after approval", func() {
 
   //make sure the approval was cleared
   // Query for the owner of the token after transfer
-  let approval_list_after = icrc30.get_token_approvals([approvedTokenId], null, null);
+  let approval_list_after = icrc30.get_approvals([approvedTokenId], null, null);
 
     (switch(approval_list_after) {
       case (#ok(list)) {
@@ -654,7 +655,7 @@ test("Transfer a token to another account after collection approval", func() {
   assert(not icrc30.is_approved(spender, ?Blob.fromArray([1]), 1));
 
   // ACT: Initiate the transfer of the approved token
-  let #ok(#Ok(transferResponse)) = icrc30.transfer_from(spender.owner, transferArgs) else return assert(false);
+  let #ok(#Ok(transferResponse)) = icrc30.transfer(spender.owner, transferArgs) else return assert(false);
 
   // ASSERT: Ensure that the transfer has been successful
   assert(
@@ -819,7 +820,7 @@ test("Transfer a token to another account after collection approval", func() {
   assert(not icrc30.is_approved(spender, ?Blob.fromArray([1]), 1));
 
   // ACT: Initiate the transfer of the approved token
-  let #ok(#Ok(transferResponse)) = icrc30.transfer_from(spender.owner, transferArgs) else return assert(false);
+  let #ok(#Ok(transferResponse)) = icrc30.transfer(spender.owner, transferArgs) else return assert(false);
 
   // ASSERT: Ensure that the transfer has been successful
   assert(
@@ -883,7 +884,7 @@ test("Revoke a single approval on a token", func() {
 
   D.print("approvalResponses2" # debug_show(approvalResponses2));
 
-  let #ok(tokenApprovalsAfterRevocation2) = icrc30.get_token_approvals([approvedTokenId], null, null) else return assert(false);
+  let #ok(tokenApprovalsAfterRevocation2) = icrc30.get_approvals([approvedTokenId], null, null) else return assert(false);
 
   D.print("approval list" # debug_show(tokenApprovalsAfterRevocation2));
 
@@ -898,7 +899,7 @@ test("Revoke a single approval on a token", func() {
     created_at_time = ?init_time;
   };
 
-  let #ok(#Ok(revokeResponse)) = icrc30.revoke_token_approvals(tokenOwner, revokeArgs) else return assert(false);
+  let #ok(#Ok(revokeResponse)) = icrc30.revoke_token(tokenOwner, revokeArgs) else return assert(false);
   D.print("revokeResponse" # debug_show(revokeResponse));
 
   // Assert: Check if the approval is correctly revoked and the ledger is updated
@@ -916,7 +917,7 @@ test("Revoke a single approval on a token", func() {
   assert(not icrc30.is_approved(spender, null, 1));
 
   // Query for approvals of the token after revocation
-  let #ok(tokenApprovalsAfterRevocation) = icrc30.get_token_approvals([approvedTokenId], null, null) else return assert(false);
+  let #ok(tokenApprovalsAfterRevocation) = icrc30.get_approvals([approvedTokenId], null, null) else return assert(false);
 
   D.print("tokenApprovalsAfterRevocation" # debug_show(tokenApprovalsAfterRevocation));
 
@@ -969,7 +970,7 @@ test("Revoke all approval on a token", func() {
 
   D.print("approvalResponses2" # debug_show(approvalResponses2));
 
-  let #ok(tokenApprovalsAfterRevocation2) = icrc30.get_token_approvals([approvedTokenId], null, null) else return assert(false);
+  let #ok(tokenApprovalsAfterRevocation2) = icrc30.get_approvals([approvedTokenId], null, null) else return assert(false);
 
   D.print("approval list" # debug_show(tokenApprovalsAfterRevocation2));
 
@@ -984,7 +985,7 @@ test("Revoke all approval on a token", func() {
     created_at_time = ?init_time;
   };
 
-  let #ok(#Ok(revokeResponse)) = icrc30.revoke_token_approvals(tokenOwner, revokeArgs)else return assert(false);
+  let #ok(#Ok(revokeResponse)) = icrc30.revoke_token(tokenOwner, revokeArgs)else return assert(false);
   D.print("revokeResponse" # debug_show(revokeResponse));
 
   // Assert: Check if the approval is correctly revoked and the ledger is updated
@@ -1002,7 +1003,7 @@ test("Revoke all approval on a token", func() {
   ); // "Revoke result indicates success"
 
   // Query for approvals of the token after revocation
-  let #ok(tokenApprovalsAfterRevocation) = icrc30.get_token_approvals([approvedTokenId], null, null) else return assert(false);
+  let #ok(tokenApprovalsAfterRevocation) = icrc30.get_approvals([approvedTokenId], null, null) else return assert(false);
 
   D.print("tokenApprovalsAfterRevocation" # debug_show(tokenApprovalsAfterRevocation));
 
@@ -1062,16 +1063,16 @@ test("Revoke single collection approvals for an account", func() {
   };
 
 
-  let #ok(#Ok(approvalResponses)) = icrc30.approve_collection(tokenOwner, approvalInfo) else return assert(false);
+  let #ok(#Ok(approvalResponses)) = icrc30.approve_collection_transfers(tokenOwner, approvalInfo) else return assert(false);
   D.print("approvalResponses" # debug_show(approvalResponses));
 
 
   assert(approvalResponses > 0);  // Ensure approval creation is successful
 
-  let #ok(#Ok(approvalResponses2)) = icrc30.approve_collection(tokenOwner, approvalInfo2) else return assert(false);
+  let #ok(#Ok(approvalResponses2)) = icrc30.approve_collection_transfers(tokenOwner, approvalInfo2) else return assert(false);
   assert(approvalResponses2 > 1);  // Ensure approval creation is successful
 
-  let #ok(tokenApprovalsAfterApproval) = icrc30.get_collection_approvals({owner = testOwner; subaccount = null}, null, null)else return assert(false);
+  let #ok(tokenApprovalsAfterApproval) = icrc30.collection_approvals({owner = testOwner; subaccount = null}, null, null)else return assert(false);
 
   assert(tokenApprovalsAfterApproval.size() == 2);
 
@@ -1096,7 +1097,7 @@ test("Revoke single collection approvals for an account", func() {
   assert(not icrc30.is_approved(spender, null, 1));
 
   // Query for approvals of the entire collection after revocation
-  let #ok(collectionApprovalsAfterRevocation) = icrc30.get_collection_approvals({owner = tokenOwner; subaccount = null;}, null, null) else return assert(false);
+  let #ok(collectionApprovalsAfterRevocation) = icrc30.collection_approvals({owner = tokenOwner; subaccount = null;}, null, null) else return assert(false);
 
   // Assert: Check if there are no approvals remaining on the entire collection for the spender
   assert(collectionApprovalsAfterRevocation.size() == 1);  // "No collection approvals remaining after revocation"
@@ -1153,13 +1154,13 @@ test("Revoke all collection approvals for an account", func() {
   assert(not icrc30.is_approved(spender, null, 1));
   assert(not icrc30.is_approved(spender2, null, 1));
 
-  let #ok(#Ok(approvalResponses)) = icrc30.approve_collection(tokenOwner, approvalInfo) else return assert(false);
+  let #ok(#Ok(approvalResponses)) = icrc30.approve_collection_transfers(tokenOwner, approvalInfo) else return assert(false);
   assert(approvalResponses > 0);  // Ensure approval creation is successful
 
-  let #ok(#Ok(approvalResponses2)) = icrc30.approve_collection(tokenOwner, approvalInfo2)else return assert(false);
+  let #ok(#Ok(approvalResponses2)) = icrc30.approve_collection_transfers(tokenOwner, approvalInfo2)else return assert(false);
   assert(approvalResponses2 > 1);  // Ensure approval creation is successful
 
-  let #ok(tokenApprovalsAfterApproval) = icrc30.get_collection_approvals({owner = testOwner; subaccount = null}, null, null)else return assert(false);
+  let #ok(tokenApprovalsAfterApproval) = icrc30.collection_approvals({owner = testOwner; subaccount = null}, null, null)else return assert(false);
 
   assert(tokenApprovalsAfterApproval.size() == 2);
 
@@ -1184,7 +1185,7 @@ test("Revoke all collection approvals for an account", func() {
   assert(not icrc30.is_approved(spender, null, 1));
 
   // Query for approvals of the entire collection after revocation
-  let #ok(collectionApprovalsAfterRevocation) = icrc30.get_collection_approvals({owner = tokenOwner; subaccount = null;}, null, null) else return assert(false);
+  let #ok(collectionApprovalsAfterRevocation) = icrc30.collection_approvals({owner = tokenOwner; subaccount = null;}, null, null) else return assert(false);
 
   // Assert: Check if there are no approvals remaining on the entire collection for the spender
   assert(collectionApprovalsAfterRevocation.size() == 0);  // "No collection approvals remaining after revocation"
