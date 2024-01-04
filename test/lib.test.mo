@@ -1,5 +1,5 @@
 import ICRC30 "../src";
-import ICRC7 "mo:icrc7.mo";
+import ICRC7 "mo:icrc7-mo";
 import Principal "mo:base/Principal";
 import CandyTypesLib "mo:candy_0_3_0/types";
 import CandyConv  "mo:candy_0_3_0/conversion";
@@ -364,15 +364,13 @@ test("Approve another account for all transfers in the collection and paginate q
     spender = approvedSpender;
   }; 
 
-  let approvalResponse = icrc30.approve_collection(testOwner, approvalArgs);
-  let approvalResponse1 = icrc30.approve_collection(testOwner, {approvalArgs with spender = spender2});
-  let approvalResponse2 = icrc30.approve_collection(testOwner, {approvalArgs with spender = spender3});
-  let approvalResponse3 = icrc30.approve_collection(testOwner, {approvalArgs with spender = spender4});
-  let approvalResponse4 = icrc30.approve_collection(testOwner, {approvalArgs with spender = spender5});
+  let approvalResponse = icrc30.approve_collection_transfers(testOwner, approvalArgs);
+  let approvalResponse1 = icrc30.approve_collection_transfers(testOwner, {approvalArgs with spender = spender2});
+  let approvalResponse2 = icrc30.approve_collection_transfers(testOwner, {approvalArgs with spender = spender3});
+  let approvalResponse3 = icrc30.approve_collection_transfers(testOwner, {approvalArgs with spender = spender4});
+  let approvalResponse4 = icrc30.approve_collection_transfers(testOwner, {approvalArgs with spender = spender5});
 
   D.print("Approval results: " # debug_show(approvalResponse, approvalResponse1, approvalResponse2, approvalResponse3, approvalResponse4));
-
-  
 
 
   switch(approvalResponse, approvalResponse1, approvalResponse2, approvalResponse3, approvalResponse4){
@@ -450,9 +448,9 @@ test("Check collection approval requests for expiry and creation times", func() 
   };
 
   // Act: Attempt collection approval requests with expired and future timestamps
-  let #err(approvalResponsesExpired) = icrc30.approve_collection(testOwner, invalidApprovalInfo1) else return assert(false);
-  let #ok(#Err(approvalResponsesFuture)) = icrc30.approve_collection(testOwner, invalidApprovalInfo2) else return assert(false);
-  let #ok(#Err(approvalResponsesOld)) = icrc30.approve_collection(testOwner, invalidApprovalInfo3) else return assert(false);
+  let #err(approvalResponsesExpired) = icrc30.approve_collection_transfers(testOwner, invalidApprovalInfo1) else return assert(false);
+  let #ok(#Err(approvalResponsesFuture)) = icrc30.approve_collection_transfers(testOwner, invalidApprovalInfo2) else return assert(false);
+  let #ok(#Err(approvalResponsesOld)) = icrc30.approve_collection_transfers(testOwner, invalidApprovalInfo3) else return assert(false);
 
   D.print("Approval results: " # debug_show(approvalResponsesExpired, approvalResponsesFuture, approvalResponsesOld));
 
@@ -648,7 +646,7 @@ test("Transfer a token to another account after collection approval", func() {
   };
 
   // Create the approval for the token transfer
-  let approvalResponses = icrc30.approve_collection(tokenOwner, approvalInfo);
+  let approvalResponses = icrc30.approve_collection_transfers(tokenOwner, approvalInfo);
 
   assert(icrc30.is_approved(spender, null, 1));
 
@@ -813,7 +811,7 @@ test("Transfer a token to another account after collection approval", func() {
   };
 
   // Create the approval for the token transfer
-  let approvalResponses = icrc30.approve_collection(tokenOwner, approvalInfo);
+  let approvalResponses = icrc30.approve_collection_transfers(tokenOwner, approvalInfo);
 
   assert(icrc30.is_approved(spender, null, 1));
 
@@ -1083,7 +1081,7 @@ test("Revoke single collection approvals for an account", func() {
     memo = null;
     created_at_time = ?init_time;
   };
-  let #ok(#Ok(revokeResponse)) = icrc30.revoke_collection_approvals(tokenOwner, revokeArgs) else return assert(false);
+  let #ok(#Ok(revokeResponse)) = icrc30.revoke_collection(tokenOwner, revokeArgs) else return assert(false);
 
   for (response in revokeResponse.vals()) {
     assert(
@@ -1171,7 +1169,7 @@ test("Revoke all collection approvals for an account", func() {
     created_at_time = ?init_time;
     memo = null;
   };
-  let #ok(#Ok(revokeResponse)) = icrc30.revoke_collection_approvals(tokenOwner, revokeArgs) else return assert(false);
+  let #ok(#Ok(revokeResponse)) = icrc30.revoke_collection(tokenOwner, revokeArgs) else return assert(false);
 
   for (response in revokeResponse.vals()) {
     assert(
@@ -1272,8 +1270,8 @@ test("Attempt to revoke approvals with duplicate or empty token ID arrays", func
   };
 
   // Act: Attempt revoke requests with duplicate and empty token ID arrays
-  let revocationResponsesWithDuplicates = icrc30.revoke_token_approvals(tokenOwner, {token_ids=tokenIdsWithDuplicates; spender=?spender; from_subaccount=null; created_at_time=null; memo=null;});
-  let revocationResponsesEmpty = icrc30.revoke_token_approvals(tokenOwner, {token_ids=emptyTokenIds; spender=?spender; from_subaccount=null; created_at_time=null; memo=null;});
+  let revocationResponsesWithDuplicates = icrc30.revoke_token(tokenOwner, {token_ids=tokenIdsWithDuplicates; spender=?spender; from_subaccount=null; created_at_time=null; memo=null;});
+  let revocationResponsesEmpty = icrc30.revoke_token(tokenOwner, {token_ids=emptyTokenIds; spender=?spender; from_subaccount=null; created_at_time=null; memo=null;});
 
   D.print("Revocation responses" # debug_show(revocationResponsesWithDuplicates, revocationResponsesEmpty));
 });
