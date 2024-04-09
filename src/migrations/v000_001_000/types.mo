@@ -35,6 +35,11 @@ module {
     created_at_time : ?Nat64; 
   };
 
+  public type ApproveTokenArg = {
+    token_id: Nat;
+    approval_info: ApprovalInfo;
+  };
+
   public type TokenApprovalNotification = {
     token_id : Nat;
     from : Account;
@@ -42,6 +47,15 @@ module {
     memo :  ?Blob;
     expires_at : ?Nat64;
     created_at_time : ?Nat64; 
+  };
+
+  public type ApproveCollectionArg = {
+    approval_info: ApprovalInfo;
+  };
+
+  public type ApprovalCollectionResult = {
+    #Ok: Nat;
+    #Err: ApproveCollectionError;
   };
 
   public type CollectionApprovalNotification = {
@@ -54,29 +68,28 @@ module {
 
   public type Error = ICRC7.Error;
 
-  public type ApproveTokensError = {
+  public type ApproveTokenError = {
+    #TooOld;
+    #InvalidSpender;
+    #CreatedInFuture : { ledger_time: Nat64 };
     #NonExistingTokenId;
     #Unauthorized;
-    #TooOld;
-    #CreatedInFuture : { ledger_time: Nat64 };
     #GenericError : { error_code : Nat; message : Text };
     #Duplicate : { duplicate_of : Nat };
+    #GenericBatchError : { error_code : Nat; message : Text };
   };
 
-  public type ApproveTokensBatchError = {
-    #TooOld;
-    #CreatedInFuture : { ledger_time: Nat64 };
-    #GenericError : { error_code : Nat; message : Text };
-  };
 
   public type ApproveCollectionError = {
+    #InvalidSpender;
     #TooOld;
     #CreatedInFuture : { ledger_time: Nat64 };
     #GenericError : { error_code : Nat; message : Text };
     #Duplicate : { duplicate_of : Nat };
+    #GenericBatchError : { error_code : Nat; message : Text };
   };
 
-  public func TokenErrorToCollectionError(x: ApproveTokensError) : ApproveCollectionError{
+  public func TokenErrorToCollectionError(x: ApproveTokenError) : ApproveCollectionError{
     switch(x){
       case(#NonExistingTokenId){
         return #GenericError({
@@ -93,11 +106,17 @@ module {
       case(#TooOld){
         return #TooOld;
       };
+      case(#InvalidSpender){
+        return #InvalidSpender;
+      };
       case(#CreatedInFuture(val)){
         return #CreatedInFuture(val);
       };
       case(#GenericError(val)){
         return #GenericError(val);
+      };
+      case(#GenericBatchError(val)){
+        return #GenericBatchError(val);
       };
       case(#Duplicate(val)){
          return #Duplicate(val);
@@ -105,32 +124,21 @@ module {
     };
   };
 
-  public type ApprovalResult =  {
-      #Ok: Nat;
-      #Err: ApproveTokensError;
-    };
-
-  public type ApprovalResponseItem = {
-    token_id : Nat;
-    approval_result :ApprovalResult;
+  public type ApproveTokenResult =  {
+    #Ok: Nat;
+    #Err: ApproveTokenError;
   };
 
-  public type ApprovalCollectionResponse = {
+  public type ApproveCollectionResult = {
     #Ok: Nat;
     #Err: ApproveCollectionError;
   };
-  public type ApprovalResponse = {
-    #Ok : [ApprovalResponseItem];
-    #Err : ApproveTokensBatchError;
-  };
 
-
-
-  public type TransferFromArgs = {
+  public type TransferFromArg = {
     spender_subaccount: ?Blob; // the subaccount of the caller (used to identify the spender)
     from : Account;
     to : Account;
-    token_ids : [Nat];
+    token_id : Nat;
     // type: leave open for now
     memo : ?Blob;
     created_at_time : ?Nat64;
@@ -145,27 +153,15 @@ module {
     created_at_time : ?Nat64;
   };
 
-  public type TransferFromResponseItem = {
-    token_id : Nat;
-    transfer_result :{
+    public type TransferFromResult = {
       #Ok: Nat;
       #Err: TransferFromError
     };
-  };
 
-  public type TransferFromResponse = {
-    #Ok: [TransferFromResponseItem];
-    #Err: TransferFromBatchError;
-  };
-
-  type TransferFromBatchError = {
+  public type TransferFromError = {
     #InvalidRecipient;
     #TooOld;
     #CreatedInFuture :  { ledger_time: Nat64 };
-    #GenericError :  { error_code : Nat; message : Text };
-};
-
-  public type TransferFromError = {
     #NonExistingTokenId;
     #Unauthorized;
     #Duplicate : { duplicate_of : Nat };
@@ -173,16 +169,20 @@ module {
       error_code : Nat; 
       message : Text 
     };
+    #GenericBatchError : { error_code : Nat; message : Text };
   };
 
-  public type RevokeTokensBatchError = {
-    #TooOld;
-    #CreatedInFuture : { ledger_time: Nat64 };
-    #GenericError : { error_code : Nat; message : Text };
+
+  public type RevokeTokenApprovalArg = {
+      token_id : Nat;
+      from_subaccount : ?Blob;
+      spender : ?Account;
+      memo: ?Blob;
+      created_at_time : ?Nat64
   };
 
-  public type RevokeTokensArgs = {
-      token_ids : [Nat];
+  public type RevokeArg = {
+      token_id : ?Nat;
       from_subaccount : ?Blob;
       spender : ?Account;
       memo: ?Blob;
@@ -192,35 +192,29 @@ module {
   public type RevokeTokenNotification = {
       token_id : Nat;
       from : Account;
-      spender : Account;
+      spender : ?Account;
+      created_at_time : ?Nat64;
       memo: ?Blob;
   };
 
-  public type RevokeTokensError = {
+  public type RevokeTokenApprovalError = {
+      #TooOld;
+      #CreatedInFuture : { ledger_time: Nat64 };
       #NonExistingTokenId;
       #Unauthorized;
       #ApprovalDoesNotExist;
       #GenericError : { error_code : Nat; message : Text };
       #Duplicate : { duplicate_of : Nat };
+      #GenericBatchError : { error_code : Nat; message : Text };
   };
 
-  public type RevokeTokensResponse = {
-    #Ok: [RevokeTokensResponseItem];
-    #Err: RevokeTokensBatchError
-  };
-
-  public type RevokeTokensResult = {
+  public type RevokeTokenApprovalResult = {
     #Ok : Nat; 
-    #Err : RevokeTokensError 
+    #Err : RevokeTokenApprovalError 
   };
 
-  public type RevokeTokensResponseItem = {
-      token_id: Nat;
-      spender: ?Account;
-      revoke_result: RevokeTokensResult;
-  };
 
-  public type RevokeCollectionArgs = {
+  public type RevokeCollectionApprovalArg = {
       from_subaccount: ?Blob;
       spender: ?Account;
       memo: ?Blob;
@@ -229,40 +223,41 @@ module {
 
   public type RevokeCollectionNotification = {
       from: Account;
-      spender: Account;
+      spender: ?Account;
       memo: ?Blob;
       created_at_time : ?Nat64;
   };
 
-  public type RevokeCollectionBatchError = {
-    #TooOld;
-    #CreatedInFuture : { ledger_time: Nat64 };
-    #GenericError : { error_code : Nat; message : Text };
+
+  public type RevokeCollectionApprovalResult = {
+      #Ok : Nat;
+      #Err : RevokeCollectionApprovalError;
   };
 
-  public type RevokeCollectionResponseItem = {
-      spender: ?Account;
-      revoke_result: RevokeTokensResult;
-  };
-
-  public type RevokeCollectionError = {
-    #ApprovalDoesNotExist; 
-    #GenericError :  { error_code : Nat; message : Text }; 
+  public type RevokeCollectionApprovalError = {
+      #TooOld;
+      #CreatedInFuture : { ledger_time: Nat64 };
+      #Unauthorized;
+      #ApprovalDoesNotExist;
+      #GenericError : { error_code : Nat; message : Text };
+      #Duplicate : { duplicate_of : Nat };
+      #GenericBatchError : { error_code : Nat; message : Text };
   };
 
   public type RevokeCollectionResult = {
     #Ok : Nat; 
-    #Err : RevokeCollectionError;
-  };
-
-  public type RevokeCollectionResponse = {
-    #Ok: [RevokeCollectionResponseItem];
-    #Err: RevokeCollectionBatchError;
+    #Err : RevokeCollectionApprovalError;
   };
 
   public type TokenApproval = {
     token_id: Nat;
     approval_info: ApprovalInfo;
+  };
+
+  public type IsApprovedArg = {
+    spender : Account;
+    from_subaccount : ?Blob;
+    token_id : Nat;
   };
 
   public type CollectionApproval = ApprovalInfo;
@@ -275,11 +270,15 @@ module {
     #CollectionApprovalRequiresToken : Bool;
   };
 
+  
+
   public type Environment = {
     canister : () -> Principal;
     icrc7 : ICRC7.ICRC7;
     get_time : () -> Int;
     refresh_state: () -> State;
+
+
 
     can_approve_token : ?((trx: Transaction, trxtop: ?Transaction, notification: TokenApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notification: TokenApprovalNotification), Text>);
 

@@ -1,42 +1,35 @@
-# icrc30.mo
+# icrc37.mo
 
-**Warning: ICRC30 has not been finalized. This is Beta software and should not be used in production until it has been reviewed, audited, and the standard finalized**
+**Warning: ICRC37 has not been finalized. This is Beta software and should not be used in production until it has been reviewed, audited, and the standard finalized**
 
 
 ## Install
 ```
-mops add icrc30.mo
+mops add icrc37.mo
 ```
 
 ## Usage
 ```motoko
-import Icrc30Mo "mo:icrc30.mo";
+import Icrc30Mo "mo:icrc37.mo";
 ```
 
 ## Initialization
 
-This ICRC30 class uses a migration pattern as laid out in https://github.com/ZhenyaUsenko/motoko-migrations, but encapsulates the pattern in the Class+ pattern as described at https://forum.dfinity.org/t/writing-motoko-stable-libraries/21201 . As a result, when you insatiate the class you need to pass the stable memory state into the class:
+This ICRC37 class uses a migration pattern as laid out in https://github.com/ZhenyaUsenko/motoko-migrations, but encapsulates the pattern in the Class+ pattern as described at https://forum.dfinity.org/t/writing-motoko-stable-libraries/21201 . As a result, when you insatiate the class you need to pass the stable memory state into the class:
 
 ```
-stable var icrc30_migration_state = ICRC7.init(ICRC7.initialState() , #v0_1_0(#id), ?{
-        max_approvals_per_token_or_collection = ?10;
-        max_revoke_approvals = ?100;
-        collection_approval_requires_token = ?true;
-        max_approvals = null;
-        settle_to_approvals = null;
-        deployer = init_msg.caller;
-      } : ICRC30.InitArgs;
+stable var icrc37_migration_state = ICRC37.init(ICRC37.initialState() , #v0_1_0(#id), ICRC37Default.defaultConfig();
     , init_msg.caller);
 
-  let #v0_1_0(#data(icrc30_state_current)) = icrc30_migration_state;
+  let #v0_1_0(#data(icrc37_state_current)) = icrc37_migration_state;
 
-  private var _icrc30 : ?ICRC30.ICRC30 = null;
+  private var _icrc37 : ?ICRC37.ICRC37 = null;
 
-  private func get_icrc30_environment() : ICRC30.Environment {
+  private func get_icrc37_environment() : ICRC37.Environment {
     {
       canister = get_canister;
       get_time = get_time;
-      refresh_state = get_icrc30_state;
+      refresh_state = get_icrc37_state;
       icrc7 = icrc7(); //your icrc7 class
       can_approve_token = null;
       can_approve_collection  = null;
@@ -46,11 +39,11 @@ stable var icrc30_migration_state = ICRC7.init(ICRC7.initialState() , #v0_1_0(#i
     };
   };
 
-  func icrc30() : ICRC30.ICRC30 {
-    switch(_icrc30){
+  func icrc37() : ICRC37.ICRC37 {
+    switch(_icrc37){
       case(null){
-        let initclass : ICRC30.ICRC30 = ICRC30.ICRC30(?icrc30_migration_state, Principal.fromActor(this), get_icrc30_environment());
-        _icrc30 := ?initclass;
+        let initclass : ICRC37.ICRC37 = ICRC37.ICRC37(?icrc37_migration_state, Principal.fromActor(this), get_icrc37_environment());
+        _icrc37 := ?initclass;
         initclass;
       };
       case(?val) val;
@@ -58,7 +51,7 @@ stable var icrc30_migration_state = ICRC7.init(ICRC7.initialState() , #v0_1_0(#i
   };
 ```
 
-The above pattern will allow your class to call icrc30().XXXXX to easily access the stable state of your class and you will not have to worry about pre or post upgrade methods.
+The above pattern will allow your class to call icrc37().XXXXX to easily access the stable state of your class and you will not have to worry about pre or post upgrade methods.
 
 ### Environment
 
@@ -67,7 +60,7 @@ The environment pattern lets you pass dynamic information about your environment
 - get_canister - A function to retrieve the canister this class is running on
 - get_time - A function to retrieve the current time to make testing easier
 - refresh_state - A function to call to refresh the state of your class. useful in async environments where state may change after an await - provided for future compatibility.
-- icrc7 - ICRC30 needs a reference to the ICRC7.mo class that runs your NFT canister.
+- icrc7 - ICRC37 needs a reference to the ICRC7.mo class that runs your NFT canister.
 - can_transfer_from - override functions to access and manipulate a transfer from transaction just before it is committed.
 - can_approve_token - override functions to access and manipulate an approve transaction just before it is committed.
 - can_approve_collection - override functions to access and manipulate an approve transaction just before it is committed.

@@ -14,7 +14,7 @@ import RepIndy "mo:rep-indy-hash";
 
 //todo: switch to mops
 import ICRC7 "mo:icrc7-mo";
-import Service "service";
+import ServiceLib "service";
 
 module {
 
@@ -23,12 +23,12 @@ module {
   /// Each field corresponds to an operation such as transfer or indexing, allowing
   /// developers to enable or disable logging during development.
   let debug_channel = {
-    announce = false;
-    indexing = false;
-    transfer = false;
-    querying = false;
-    approve = false;
-    revoke = false;
+    announce = true;
+    indexing = true;
+    transfer = true;
+    querying = true;
+    approve = true;
+    revoke = true;
   };
 
   /// Access to Map v9.0.1
@@ -39,6 +39,8 @@ module {
 
   /// Access to Vector
   public let Vec =                  MigrationTypes.Current.Vec;
+
+  
 
   /// Hashing function for account IDs as defined by the `ICRC7` module. Used for Account based Maps
   public let ahash =                ICRC7.ahash;
@@ -69,28 +71,23 @@ module {
   public type Environment =         MigrationTypes.Current.Environment;
   public type UpdateLedgerInfoRequest = MigrationTypes.Current.UpdateLedgerInfoRequest;
   
-  public type ApprovalResponse =            MigrationTypes.Current.ApprovalResponse;
-  public type ApprovalResult =              MigrationTypes.Current.ApprovalResult;
-  public type ApprovalCollectionResponse =  MigrationTypes.Current.ApprovalCollectionResponse;
-  public type ApprovalResponseItem =        MigrationTypes.Current.ApprovalResponseItem;
+  public type ApproveTokenResult =            MigrationTypes.Current.ApproveTokenResult;
+  public type ApproveCollectionResult =       MigrationTypes.Current.ApproveCollectionResult;
   
-  public type TransferFromArgs =                MigrationTypes.Current.TransferFromArgs;
-  public type TransferFromResponse =            MigrationTypes.Current.TransferFromResponse;
-  public type TransferFromResponseItem =        MigrationTypes.Current.TransferFromResponseItem;
-  public type TransferFromError =               MigrationTypes.Current.TransferFromArgs;
+  public type TransferFromArg =                MigrationTypes.Current.TransferFromArg;
+  public type TransferFromResult =            MigrationTypes.Current.TransferFromResult;
+
+  public type TransferFromError =               MigrationTypes.Current.TransferFromError;
   public type TransferNotification =            ICRC7.TransferNotification;
   public type BurnNotification =                ICRC7.BurnNotification;
   
-  public type RevokeTokensArgs =            MigrationTypes.Current.RevokeTokensArgs;
-  public type RevokeTokensError =           MigrationTypes.Current.RevokeTokensError;
-  public type RevokeTokensResponse =        MigrationTypes.Current.RevokeTokensResponse;
-  public type RevokeTokensResult =          MigrationTypes.Current.RevokeTokensResult;
-  public type RevokeTokensResponseItem =    MigrationTypes.Current.RevokeTokensResponseItem;
-  public type RevokeCollectionArgs =            MigrationTypes.Current.RevokeCollectionArgs;
-  public type RevokeCollectionError =           MigrationTypes.Current.RevokeCollectionError;
-  public type RevokeCollectionResponse =        MigrationTypes.Current.RevokeCollectionResponse;
-  public type RevokeCollectionResult =          MigrationTypes.Current.RevokeCollectionResult;
-  public type RevokeCollectionResponseItem =    MigrationTypes.Current.RevokeCollectionResponseItem;
+  public type RevokeTokenApprovalArg =            MigrationTypes.Current.RevokeTokenApprovalArg;
+  public type RevokeTokenApprovalError =           MigrationTypes.Current.RevokeTokenApprovalError;
+  public type RevokeTokenApprovalResult =        MigrationTypes.Current.RevokeTokenApprovalResult;
+  public type RevokeCollectionApprovalArg =            MigrationTypes.Current.RevokeCollectionApprovalArg;
+  public type RevokeCollectionApprovalError =           MigrationTypes.Current.RevokeCollectionApprovalError;
+  public type RevokeCollectionApprovalResult =        MigrationTypes.Current.RevokeCollectionApprovalResult;
+
   public type TokenApproval =                   MigrationTypes.Current.TokenApproval; 
   public type CollectionApproval =              MigrationTypes.Current.CollectionApproval;
 
@@ -106,9 +103,11 @@ module {
   public type CollectionApprovalRevokedListener =              MigrationTypes.Current.CollectionApprovalRevokedListener;
   public type TransferFromListener =              MigrationTypes.Current.TransferFromListener;
 
+  public let Service = ServiceLib;
+
   let default_take = 10000;
 
-  /// Function to create an initial state for the Approval ICRC30 management.
+  /// Function to create an initial state for the Approval ICRC37 management.
   public func initialState() : State {#v0_0_0(#data)};
 
   /// Current ID Version of the Library, used for Migrations
@@ -118,7 +117,7 @@ module {
   public let init = Migration.migrate;
 
   /// Helper function to determine if a Too Old response is present
-  public func collectionRevokeIsTooOld(result : RevokeCollectionResponse) : Bool {
+  public func collectionRevokeIsTooOld(result : RevokeCollectionApprovalResult) : Bool {
     
       switch(result){
         case(#Err(#TooOld)){
@@ -131,7 +130,7 @@ module {
   };
 
   /// Helper function to determine if a Too Old response is present
-  public func tokenRevokeIsTooOld(result : RevokeTokensResponse) : Bool{
+  public func tokenRevokeIsTooOld(result : RevokeTokenApprovalResult) : Bool{
     
       switch(result){
         case(#Err(#TooOld)){
@@ -143,7 +142,7 @@ module {
   };
 
   /// Helper function to determine if a Too Old response is in the future
-  public func collectionRevokeIsInFuture(result : RevokeCollectionResponse) : Bool{
+  public func collectionRevokeIsInFuture(result : RevokeCollectionApprovalResult) : Bool{
     
       switch(result){
         case(#Err(#CreatedInFuture(err))){
@@ -156,7 +155,7 @@ module {
   };
 
   /// Helper function to determine if a Too Old response is in the future
-  public func tokenRevokeIsInFuture(result : RevokeTokensResponse) : Bool{
+  public func tokenRevokeIsInFuture(result : RevokeTokenApprovalResult) : Bool{
     
       switch(result){
         case(#Err(#CreatedInFuture(val))){
@@ -168,17 +167,16 @@ module {
     return false;
   };
 
-  public type Service = Service.Service;
 
-  /// #class ICRC30 
-  /// Initializes the state of the ICRC30 class.
+  /// #class ICRC37 
+  /// Initializes the state of the ICRC37 class.
   /// - Parameters:
   ///     - stored: `?State` - An optional initial state to start with; if `null`, the initial state is derived from the `initialState` function.
   ///     - canister: `Principal` - The principal of the canister where this class is used.
   ///     - environment: `Environment` - The environment settings for various ICRC standards-related configurations.
   /// - Returns: No explicit return value as this is a class constructor function.
   ///
-  /// The `ICRC30` class encapsulates the logic for managing approvals and transfers of NFTs.
+  /// The `ICRC37` class encapsulates the logic for managing approvals and transfers of NFTs.
   /// Within the class, we have various methods such as `get_ledger_info`, `approve_transfers`, 
   /// `is_approved`, `get_token_approvals`, `revoke_collection_approvals`, and many others
   /// that assist in handling the ICRC-30 standard functionalities like getting and setting 
@@ -193,11 +191,11 @@ module {
   /// Event listeners and clean-up routines are also defined to maintain the correct state 
   /// of approvals after transfers and to ensure the system remains within configured limitations.
   ///
-  /// The `ICRC30` class allows for detailed ledger updates using `update_ledger_info`, 
+  /// The `ICRC37` class allows for detailed ledger updates using `update_ledger_info`, 
   /// querying for different approval states, and managing the transfer of tokens.
   ///    
   /// Additional functions like `get_stats` provide insight into the current state of NFT approvals.
-  public class ICRC30(stored: ?State, canister: Principal, environment: Environment){
+  public class ICRC37(stored: ?State, canister: Principal, environment: Environment){
 
     var state : CurrentState = switch(stored){
       case(null) {
@@ -221,17 +219,26 @@ module {
 
     // queries
 
+    public func supported_blocktypes() : [(Text,Text)] {
+      return[
+        ("37appr","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
+        ("37revoke","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
+        ("37revoke_coll","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
+        ("37xfer","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
+        ];
+    };
+
     /// Returns the approval-related metadata of the ledger implementation. The metadata representation is analogous to that of ICRC-7 using the Value type to represent properties.
-    public func metadata() : Service.MetadataResponse {
+    public func metadata() : ICRC7.Service.CollectionMetadataResponse {
       let results = Vec.new<(Text, Value)>();
 
       switch (max_approvals_per_token_or_collection()) {
-        case (?val) Vec.add(results, ("icrc30:max_approvals_per_token_or_collection", #Nat(val)));
+        case (?val) Vec.add(results, ("icrc37:max_approvals_per_token_or_collection", #Nat(val)));
         case (null) {};
       };
 
       switch (max_revoke_approvals()) {
-        case (?val) Vec.add(results, ("icrc30:max_revoke_approvals", #Nat(val)));
+        case (?val) Vec.add(results, ("icrc37:max_revoke_approvals", #Nat(val)));
         case (null) {};
       };
 
@@ -249,26 +256,38 @@ module {
     };
 
     /// Returns true if an active approval exists that allows the spender to transfer the token token_id from the given from_subaccount, false otherwise.
-    public  func is_approved(spender : Account, from_subaccount: ?Blob, token_id: Nat) : Bool {
-
-      debug if(debug_channel.announce) D.print("is_approved " # debug_show(spender, from_subaccount, token_id));
-
-      //look in collection approvals
-      switch(Map.get<(?Nat,Account), ApprovalInfo>(state.token_approvals, apphash, (null, spender))){
-        case(null){};
-        case(?val){
-          if(val.from_subaccount == from_subaccount) return true;
-        };
-      };
+    public  func is_approved(requests: [Service.IsApprovedArg]) : [Bool] {
+      let results = Vec.new<Bool>();
+      label proc for(thisRequest in requests.vals()){
        
-      //look in direct approvals
-      switch(Map.get<(?Nat,Account), ApprovalInfo>(state.token_approvals, apphash, (?token_id, spender))){
-        case(null){};
-        case(?val){
-          if(val.from_subaccount == from_subaccount) return true;
+      
+
+        debug if(debug_channel.announce) D.print("is_approved " # debug_show(thisRequest));
+
+        //look in collection approvals
+        switch(Map.get<(?Nat,Account), ApprovalInfo>(state.token_approvals, apphash, (null, thisRequest.spender))){
+          case(null){};
+          case(?val){
+              if(val.from_subaccount == thisRequest.from_subaccount){ Vec.add(results,true);
+              continue proc;
+            };
+          };
         };
+        
+        //look in direct approvals
+        switch(Map.get<(?Nat,Account), ApprovalInfo>(state.token_approvals, apphash, (?thisRequest.token_id, thisRequest.spender))){
+          case(null){};
+          case(?val){
+            if(val.from_subaccount == thisRequest.from_subaccount) {
+              Vec.add(results,true);
+              continue proc;
+            };
+          };
+        };
+        Vec.add(results,false);
+      
       };
-      return false;
+      return Vec.toArray(results);
     };
 
     /// Returns the token-level approvals that exist for the given vector of token_ids. The result is paginated, the mechanics of pagination are analogous to icrc7_tokens using prev and take to control pagination, with prev being of type TokenApproval. Note that take refers to the number of returned elements to be requested. The prev parameter is a TokenApproval element with the meaning that TokenApprovals following the provided one are returned, based on a sorting order over TokenApprovals implemented by the ledger.
@@ -289,50 +308,51 @@ module {
 
     // updates
 
-    /// Transfers one or more tokens from the from account to the to account. The transfer can be initiated by the holder of the tokens (the holder has an implicit approval for acting on all their tokens on their own behalf) or a party that has been authorized by the holder to execute transfers using icrc30_approve_tokens or icrc30_approve_collection. The spender_subaccount is used to identify the spender. The spender is an account comprised of the principal calling this method and the parameter spender_subaccount. Omitting the spender_subaccount means using the default subaccount.
-    public func transfer_from(caller : Principal, args : Service.TransferFromArgs) : Service.TransferFromResponse {
-      switch (transfer(caller, args)) {
+    /// Transfers one or more tokens from the from account to the to account. The transfer can be initiated by the holder of the tokens (the holder has an implicit approval for acting on all their tokens on their own behalf) or a party that has been authorized by the holder to execute transfers using ICRC37_approve_tokens or ICRC37_approve_collection. The spender_subaccount is used to identify the spender. The spender is an account comprised of the principal calling this method and the parameter spender_subaccount. Omitting the spender_subaccount means using the default subaccount.
+    public func transfer_from<system>(caller : Principal, args : [Service.TransferFromArg]) : [?Service.TransferFromResult] {
+      switch (transfer<system>(caller, args)) {
         case (#ok(val)) val;
         case (#err(err)) D.trap(err);
       };
     };
 
     /// Entitles a spender, indicated through an Account, to transfer NFTs on behalf of the caller of this method from account { owner = caller; subaccount = from_subaccount }, where caller is the caller of this method (and also the owner principal of the tokens that are subject to approval) and from_subaccount is the subaccount of the token owner principal the approval should apply to (i.e., the subaccount which the tokens must be held on and can be transferred out from). Note that the from_subaccount parameter needs to be explicitly specified because accounts are a primary concept in this standard and thereby the from_subaccount needs to be specified as part of the account that holds the token. The expires_at value specifies the expiration date of the approval, the memo parameter is an arbitrary blob that is not interpreted by the ledger. The created_at_time field specifies when the approval has been created. The parameter token_ids specifies a batch of tokens to apply the approval to.
-    public func approve_tokens (caller : Principal, token_ids : [Nat], approval: Service.ApprovalInfo) : Service.ApprovalResponse {
-      switch (approve_transfers(caller, token_ids, approval)) {
+    public func approve_tokens<system>(caller : Principal, approval: [Service.ApproveTokenArg]) : [?Service.ApproveTokenResult] {
+      switch (approve_transfers<system>(caller, approval)) {
         case (#ok(val)) val;
         case (#err(err)) D.trap(err);
       };
     };
 
     /// Entitles a spender, indicated through an Account, to transfer any NFT of the collection hosted on this ledger and owned by the caller at the time of transfer on behalf of the caller of this method from account { owner = caller; subaccount = from_subaccount }, where caller is the caller of this method and from_subaccount is the subaccount of the token owner principal the approval should apply to (i.e., the subaccount which tokens the approval should apply to must be held on and can be transferred out from). Note that the from_subaccount parameter needs to be explicitly specified not only because accounts are a primary concept in this standard, but also because the approval applies to the collection, i.e., all tokens on the ledger the caller holds, and those tokens may be held on different subaccounts. The expires_at value specifies the expiration date of the approval, the memo parameter is an arbitrary blob that is not interpreted by the ledger. The created_at_time field specifies when the approval has been created.
-    public func approve_collection(caller: Principal, approval : Service.ApprovalInfo) : Service.ApprovalCollectionResponse {
-      let result : ApprovalResult = switch (approve_collection_transfers(caller, approval)) {
-        case (#ok(val)) val;
-        case (#err(err)) D.trap(err);
+    public func approve_collection<system>(caller: Principal, approvals : [Service.ApproveCollectionArg]) : [?Service.ApproveCollectionResult] {
+
+      let results = Vec.new<?ApproveCollectionResult>();
+
+      for(thisApproval in approvals.vals()){
+        let thisResult = switch (approve_collection_transfer<system>(caller, thisApproval)) {
+          case (#ok(val)) val;
+          case (#err(err)) null;
+        };
+
+        let translation = switch (thisResult) {
+          case (?#Err(val)) {
+            ?#Err(TokenErrorToCollectionError(val));
+          };
+          case (?#Ok(val)) {
+            ?#Ok(val);
+          };
+          case (null) null;
+        };
+        Vec.add(results,translation);
       };
 
-      switch (result) {
-        case (#Err(val)) {
-          return (#Err(TokenErrorToCollectionError(val)));
-        };
-        case (#Ok(val)) {
-          return #Ok(val);
-        };
-      };
+      return Vec.toArray(results);
     };
 
     /// Revokes the specified approvals for tokens given by token_ids from the set of active approvals. The from_subaccount parameter specifies the token owner's subaccount to which the approval applies, the spender the party for which the approval is to be revoked. A null value of from_subaccount indicates the default subaccount. A null value for spender means to revoke approvals with any value for the spender.
-    public func revoke_token_approvals(caller : Principal, args : Service.RevokeTokensArgs) : Service.RevokeTokensResponse{
-      switch (revoke_token(caller, args)) {
-        case (#ok(val)) val;
-        case (#err(err)) D.trap(err);
-      };
-    };
-
-    /// Revokes collection-level approvals from the set of active approvals. The from_subaccount parameter specifies the token owner's subaccount to which the approval applies, the spender the party for which the approval is to be revoked. A null value of from_subaccount indicates the default subaccount. A null value for spender means to revoke approvals with any value for the spender.
-    public func revoke_collection_approvals(caller : Principal, args: Service.RevokeCollectionArgs) : Service.RevokeCollectionResponse {
-      switch (revoke_collection(caller, args)) {
+    public func revoke_token_approvals<system>(caller : Principal, args : [Service.RevokeTokenApprovalArg]) : [?Service.RevokeTokenApprovalResult] {
+      switch (revoke_tokens<system>(caller, args)) {
         case (#ok(val)) val;
         case (#err(err)) D.trap(err);
       };
@@ -361,58 +381,97 @@ module {
     ///     - caller: `Principal` - The principal of the user initiating the approval action.
     ///     - token_ids: `[Nat]` - An array of token IDs the user is granting approval for.
     ///     - approval: `ApprovalInfo` - The approval information including spender and optional expiry.
-    /// - Returns: `Result<[ApprovalResponseItem], Text>` - A result containing either a list of approval response items or an error message in text.
-    public func approve_transfers(caller: Principal, token_ids: [Nat], approval: ApprovalInfo) : Result.Result<ApprovalResponse, Text> {
+    /// - Returns: `Result<[ApproveTokenResultItem], Text>` - A result containing either a list of approval response items or an error message in text.
+    public func approve_transfers<system>(caller: Principal, approval: [Service.ApproveTokenArg]) : Result.Result<[?ApproveTokenResult], Text> {
 
       //check that the batch isn't too big
       let safe_batch_size = environment.icrc7.get_ledger_info().max_update_batch_size;
 
-       //test that the memo is not too large
-      let ?(memo) = testMemo(approval.memo) else return #err("invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits");
+       
 
-      if(token_ids.size() == 0) return #err("empty token_ids");
+      if(approval.size() == 0) return #err("empty token_ids");
 
-      if(hasDupes(token_ids)) return #err("duplicate tokens in token_ids");
-
-      //test that the expires is not in the past
-      let ?(expires_at) = testExpiresAt(approval.expires_at) else return #err("already expired");
-
-      //check from and spender account not equal
-      if(account_eq({owner = caller; subaccount = approval.from_subaccount}, approval.spender)){
-        return #err("cannot approve tokens to same account");
-      };
-
-      let current_approvals = switch(Map.get(state.indexes.owner_to_approval_account, ahash, {owner = caller; subaccount = approval.from_subaccount})){
-        case(?val){
-          Set.size(val);
-        };
-        case(null) 0;
-      };
-
-      debug if(debug_channel.approve) D.print("number of approvals" # debug_show(current_approvals));
-
-      if(current_approvals >= state.ledger_info.max_approvals_per_token_or_collection){
-        return #err("Too many approvals from account" # debug_show({owner = caller; subaccount = approval.from_subaccount}))
-      };
-
-      //make sure the approval is not too old or too far in the future
-      let created_at_time = switch(testCreatedAt(approval.created_at_time, environment)){
-        case(#ok(val)) val;
-        case(#Err(#TooOld)) return #ok(#Err(#TooOld));
-        case(#Err(#InTheFuture(val))) return  #ok(#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
-      };
       
-      return #ok(#Ok(Array.map<Nat, ApprovalResponseItem>(token_ids,  func(x) : ApprovalResponseItem { 
-        let result = approve_transfer(environment, caller, ?x, approval);
+
+      let results = Vec.new<?ApproveTokenResult>();
+      
+      label proc for(thisItem in approval.vals()){ 
+        //test that the memo is not too large
+        let ?(memo) = testMemo(thisItem.approval_info.memo) else {
+          Vec.add(results, ?#Err(#GenericBatchError({message = "invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits"; error_code = 111})));
+          return #ok(Vec.toArray<?ApproveTokenResult>(results));
+        };
+
+        //test that the expires is not in the past
+        let ?(expires_at) = testExpiresAt(thisItem.approval_info.expires_at) else {
+          Vec.add(results, ?#Err(#GenericError({message = "already expired"; error_code = 1112})));
+          continue proc;
+        };
+
+        //check from and spender account not equal
+        if(account_eq({owner = caller; subaccount = thisItem.approval_info.from_subaccount}, thisItem.approval_info.spender)) {
+          Vec.add(results, ?#Err(#GenericError({message = "cannot approve tokens on the same account"; error_code = 1112})));
+          continue proc;
+        };
+
+        let current_approvals = switch(Map.get(state.indexes.owner_to_approval_account, ahash, {owner = caller; subaccount = thisItem.approval_info.from_subaccount})){
+          case(?val){
+            Set.size(val);
+          };
+          case(null) 0;
+        };
+
+        debug if(debug_channel.approve) D.print("number of approvals" # debug_show(current_approvals, state.ledger_info.max_approvals_per_token_or_collection));
+
+        if(current_approvals >= state.ledger_info.max_approvals_per_token_or_collection){
+          Vec.add(results, ?#Err(#GenericBatchError({message="Too many approvals from account" # debug_show({owner = caller; subaccount = thisItem.approval_info.from_subaccount}); error_code = 1114})));
+          return #ok(Vec.toArray<?ApproveTokenResult>(results));
+        };
+
+        //make sure the approval is not too old or too far in the future
+        let created_at_time = switch(testCreatedAt(thisItem.approval_info.created_at_time, environment)){
+          case(#ok(val)) val;
+          case(#Err(#TooOld)) {
+            Vec.add(results, ?#Err(#TooOld));
+            continue proc;
+          };
+          case(#Err(#InTheFuture(val))){
+            Vec.add(results, ?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
+            continue proc;
+          };
+        };
+
+        switch(environment.icrc7.get_nft(thisItem.token_id)){
+          case(?val) {};
+          case(null){
+            Vec.add(results, ?#Err(#NonExistingTokenId));
+            continue proc;
+          };
+        };
+        
+
+        let ?owner = environment.icrc7.get_token_owner(thisItem.token_id) else {
+          Vec.add(results, ?#Err(#Unauthorized));
+          continue proc;
+        };
+
+        //check from and spender account not equal
+        if(not account_eq(owner,{owner = caller; subaccount= thisItem.approval_info.from_subaccount})) {
+          Vec.add(results, ?#Err(#Unauthorized));
+          continue proc;
+        };
+
+
+        let result = approve_transfer<system>(environment, caller, ?thisItem.token_id, thisItem.approval_info);
         
         switch(result.0){
           case(null) {// should be unreachable;
-            return {token_id = x; approval_result = #Err(#GenericError({error_code = 8; message = "unreachable null token"}))} : ApprovalResponseItem; 
+            Vec.add(results, ?#Err(#GenericError({error_code = 8; message = "unreachable null token"}))); 
           }; 
-          case(?val) return ({token_id = val; approval_result = result.1} : ApprovalResponseItem);
+          case(?val)Vec.add(results, ?#Ok(val));
         };
-      })));
-      
+      };
+      return #ok(Vec.toArray<?ApproveTokenResult>(results));
     };
 
     private func testMemo(val : ?Blob) : ??Blob{
@@ -614,7 +673,7 @@ module {
     };
 
     /// Cleans up approvals for collections that have exceeded a certain threshold.
-    public func cleanUpApprovalsRoutine() : () {
+    public func cleanUpApprovalsRoutine<system>() : () {
       if(Map.size<(?Nat, Account), ApprovalInfo>(state.token_approvals) > state.ledger_info.max_approvals){
         cleanUpApprovals(state.ledger_info.settle_to_approvals);
       };
@@ -623,9 +682,9 @@ module {
     /// Cleans up approvals until the Map is reduced to the size in remaining.
     /// - Parameters:
     ///     - remaining: `Nat` - The number of approvals you want the Map size reduced to
-    public func cleanUpApprovals(remaining: Nat) : (){
+    public func cleanUpApprovals<system>(remaining: Nat) : (){
       //this naievly delete the oldest items until the collection is equal or below the remaining value
-      let memo = Text.encodeUtf8("icrc30_system_clean");
+      let memo = Text.encodeUtf8("icrc3737_system_clean");
     
       label clean for(thisItem in Map.entries<(?Nat, Account), ApprovalInfo>(state.token_approvals)){
 
@@ -638,7 +697,8 @@ module {
               let trx = Vec.new<(Text, Value)>();
               let trxtop = Vec.new<(Text, Value)>();
 
-              Vec.add(trx, ("op", #Text("30revoke_collection_approval")));
+              Vec.add(trx, ("op", #Text("37revoke_coll")));
+              Vec.add(trxtop, ("btype", #Text("37revoke_coll")));
               Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
               Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = environment.canister(); subaccount = null})));
               Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
@@ -648,7 +708,7 @@ module {
               let txMap = #Map(Vec.toArray(trx));
               let txTopMap = #Map(Vec.toArray(trxtop));
               let preNotification = {
-                  spender = thisItem;
+                  spender = ?thisItem;
                   from = {owner = environment.canister(); subaccount = null};
                   created_at_time = ?Nat64.fromNat(Int.abs(environment.get_time()));
                   memo = ?memo;
@@ -667,7 +727,7 @@ module {
                     };
                   };
                 };
-                case(?val) val(txMap, ?txTopMap);
+                case(?val) val<system>(txMap, ?txTopMap);
               };
 
               for(thisEvent in Vec.vals(collection_revoked_listeners)){
@@ -678,11 +738,12 @@ module {
           case(?token_id){
             let #ok(owner) = environment.icrc7.get_token_owner_canonical(token_id) else continue clean;
             let result =  revoke_approvals(thisItem.0.0, ?thisItem.0.1, thisItem.1.from_subaccount, ?owner);
-            let memo = Text.encodeUtf8("icrc30_system_clean");
+            let memo = Text.encodeUtf8("icrc37_system_clean");
             label proc for(thisItem in result.vals()){
               let trx = Vec.new<(Text, Value)>();
               let trxtop = Vec.new<(Text, Value)>();
-              Vec.add(trx, ("op", #Text("30revoke_token_approval")));
+              Vec.add(trx, ("op", #Text("37revoke")));
+              Vec.add(trxtop, ("btype", #Text("37revoke")));
               Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
               Vec.add(trx, ("tid", #Nat(token_id)));
               Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = environment.canister(); subaccount = null})));
@@ -691,15 +752,15 @@ module {
 
               let txMap = #Map(Vec.toArray(trx));
               let txTopMap = #Map(Vec.toArray(trxtop));
-              let preNotification = {
-                spender = thisItem;
+              let preNotification : RevokeTokenNotification = {
+                spender = ?thisItem;
                 token_id = token_id;
                 from = {owner = environment.canister(); subaccount = null};
                 created_at_time = ?Nat64.fromNat(Int.abs(environment.get_time()));
                 memo = ?memo;
               };
 
-              //implment ledger;
+              //implement ledger;
               let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
                 case(null){
                   //use local ledger. This will not scale
@@ -829,22 +890,37 @@ module {
     /// Revokes collection approval for the current caller based on provided arguments.
     /// - Parameters:
     ///     - caller: `Principal` - The principal of the user initiating the revoke action.
-    ///     - revokeArgs: `RevokeCollectionArgs` - The arguments specifying the revoke action details.
-    /// - Returns: `[RevokeCollectionResponseItem]` - A list of response items for each revoke action taken.
-    private func revoke_collection_approval(caller : Principal, revokeArgs : RevokeCollectionArgs) : [RevokeCollectionResponseItem] {
-      let result = revoke_approvals(null, revokeArgs.spender, revokeArgs.from_subaccount, ?{owner = caller; subaccount = revokeArgs.from_subaccount});
+    ///     - revokeArg: `RevokeCollectionApprovalArg` - The arguments specifying the revoke action details.
+    /// - Returns: `[RevokeCollectionApprovalResult]` - A list of response items for each revoke action taken.
+    public func revoke_collection_approvals<system>(caller : Principal, revokeArgs : [RevokeCollectionApprovalArg]) : [?RevokeCollectionApprovalResult] {
 
-      let list = Vec.new<RevokeCollectionResponseItem>();
 
-      let ?(memo) = testMemo(revokeArgs.memo) else return [{revoke_result = #Err(#GenericError({message="invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits"; error_code=45})); spender = null}];
 
-      label proc for(thisItem in result.vals()){
+      let list = Vec.new<?RevokeCollectionApprovalResult>();
+
+      
+
+      label proc for(thisItem in revokeArgs.vals()){
+
+        let ?(memo) = testMemo(thisItem.memo) else {
+          Vec.add(list, ?#Err(#GenericBatchError({message="invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits"; error_code=45})
+          ));
+          return Vec.toArray(list);
+        };
+
         let trx = Vec.new<(Text, Value)>();
         let trxtop = Vec.new<(Text, Value)>();
-        Vec.add(trx, ("op", #Text("30revoke_coll")));
+        Vec.add(trx, ("op", #Text("37revoke_coll")));
+        Vec.add(trx, ("btype", #Text("37revoke_coll")));
         Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
-        Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = caller; subaccount = revokeArgs.from_subaccount})));
-        Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
+        Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = caller; subaccount = thisItem.from_subaccount})));
+        switch(thisItem.spender){
+          case(null){};
+          case(?val){
+            Vec.add(trx, ("spender", environment.icrc7.accountToValue(val)));
+          };
+        };
+       
         switch(memo){
           case(null){};
           case(?val){
@@ -852,7 +928,7 @@ module {
           };
         };
 
-        switch(revokeArgs.created_at_time){
+        switch(thisItem.created_at_time){
           case(null){};
           case(?val){
             Vec.add(trx, ("ts", #Nat(Nat64.toNat(val))));
@@ -861,11 +937,12 @@ module {
 
         let txMap = #Map(Vec.toArray(trx));
         let txTopMap = #Map(Vec.toArray(trxtop));
-        let preNotification = {
-            spender = thisItem;
-            from = {owner = caller; subaccount = revokeArgs.from_subaccount};
-            created_at_time = revokeArgs.created_at_time;
-            memo = revokeArgs.memo;
+        let preNotification : RevokeCollectionNotification = {
+            spender = thisItem.spender;
+            from = {owner = caller; 
+            subaccount = thisItem.from_subaccount};
+            created_at_time = thisItem.created_at_time;
+            memo = thisItem.memo;
           };
 
         let(finaltx, finaltxtop, notification) : (Value, ?Value, RevokeCollectionNotification) = switch(environment.can_revoke_collection_approval){
@@ -876,112 +953,75 @@ module {
             switch(remote_func(txMap, ?txTopMap, preNotification)){
               case(#ok(val)) val;
               case(#err(tx)){
-                Vec.add(list, {
-                  spender = ?thisItem;
-                  revoke_result = #Err(#GenericError({error_code = 394; message = tx}));
-                });
+                Vec.add(list, ?#Err(#GenericError({error_code = 394; message = tx})));
                 continue proc;
               };
             };
           };
         };
+
+        let result = revoke_approvals(null, notification.spender, notification.from.subaccount, null);
 
          //implment ledger;
         let transaction_id = switch(environment.icrc7.get_environment().add_ledger_transaction){
           case(null){
             switch(environment.icrc7.add_local_ledger(finaltxtop, finaltx)){
               case(#err(err)){
-                 Vec.add(list, {
-                  spender = ?thisItem;
-                  revoke_result = #Err(#GenericError({error_code = 3849; message = err}));
-                });
+                 Vec.add(list, ?#Err(#GenericError({error_code = 3849; message = err})));
                 continue proc;
               };
               case(#ok(val)) val;
             };
           };
-          case(?val) val(finaltx, finaltxtop);
+          case(?val) val<system>(finaltx, finaltxtop);
         };
 
         for(thisEvent in Vec.vals(collection_revoked_listeners)){
           thisEvent.1(notification, transaction_id);
         };
 
-        Vec.add<RevokeCollectionResponseItem>(list, {
-          spender = ?thisItem;
-          revoke_result = #Ok(transaction_id);
-        })
+        Vec.add<?RevokeCollectionApprovalResult>(list, ?#Ok(transaction_id));
       };
 
       return Vec.toArray(list);
-    };
-
-    /// Revokes collection approvals for the current caller based on provided arguments.
-    /// - Parameters:
-    ///     - caller: `Principal` - The principal of the user initiating the revoke action.
-    ///     - revokeArgs: `RevokeCollectionArgs` - The arguments specifying the revoke action details.
-    /// - Returns: `Result<RevokeCollectionResponse, Text>` - A result containing either the revoke collection response or an error message.
-    public func revoke_collection(caller : Principal, revokeArgs: RevokeCollectionArgs) : Result.Result<RevokeCollectionResponse, Text> {
-
-      //validate
-
-      //test that the memo is not too large
-      let ?(memo) = testMemo(revokeArgs.memo) else return #err("invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits");
-
-      //make sure the approval is not too old or too far in the future
-      let created_at_time = switch(testCreatedAt(revokeArgs.created_at_time, environment)){
-        case(#ok(val)) val;
-        case(#Err(#TooOld)) return #ok(#Err(#TooOld));
-        case(#Err(#InTheFuture(val))) return  #ok(#Err(#CreatedInFuture({ledger_time =Nat64.fromNat(Int.abs(environment.get_time()))})));
-      };
-        
-      let list = Vec.new<RevokeCollectionResponseItem>();
-  
-      let result = revoke_collection_approval(caller, revokeArgs);
-
-      for(thisItem in result.vals()){
-        Vec.add<RevokeCollectionResponseItem>(list, thisItem)
-      };
-    
-
-      #ok(#Ok(Vec.toArray(list)));
     };
 
     /// Revokes a single token transfer approval
     /// - Parameters:
     ///     - caller: `Principal` - The principal of the user initiating the revoke action.
     ///     - token_id: `?Nat` - An optional token ID. If `null`, all collections associated with the spender are considered.
-    ///     - revokeArgs: `RevokeCollectionArgs` - The arguments specifying the revoke action details.
+    ///     - revokeArgs: `RevokeCollectionApprovalArg` - The arguments specifying the revoke action details.
     /// - Returns: `[Account]` - A list of spenders who were affected by the revocation.
     ///
     /// warning: Does not provide top level validation. Use revoke_token_approvals to validadate top level paramaters
-    private func revoke_token_approval(caller : Principal, token_id: Nat, revokeArgs : RevokeTokensArgs) : [RevokeTokensResponseItem] {
+    private func revoke_token_approval<system>(caller : Principal, revokeArg : RevokeTokenApprovalArg) : ?RevokeTokenApprovalResult {
 
-      let #ok(owner) = environment.icrc7.get_token_owner_canonical(token_id) else return [{token_id= token_id; revoke_result = #Err(#GenericError({
-        error_code = 3;
-        message = "owner not set"
-      })); spender=null}];
+      let #ok(owner) = environment.icrc7.get_token_owner_canonical(revokeArg.token_id) else return ?#Err(#Unauthorized);
 
-      if(not account_eq( {owner = caller; subaccount = revokeArgs.from_subaccount}, owner)) return [{token_id= token_id; revoke_result = #Err(#Unauthorized); spender = null}]; //can only revoke your own tokens;
+      if(not account_eq( {owner = caller; subaccount = revokeArg.from_subaccount}, owner)) return ?#Err(#Unauthorized); //can only revoke your own tokens;
 
-      let ?(memo) = testMemo(revokeArgs.memo) else return [{token_id= token_id; revoke_result = #Err(#GenericError({
+      let ?(memo) = testMemo(revokeArg.memo) else return ?#Err(#GenericError({
         error_code = 56;
         message = "illegal memo"
-      })); spender=null}];
+      }));
 
-      let result = revoke_approvals(?token_id, revokeArgs.spender, revokeArgs.from_subaccount, ?owner);
+        let list = Vec.new<?RevokeTokenApprovalResult>();
 
-      let list = Vec.new<RevokeTokensResponseItem>();
-
-      label proc for(thisItem in result.vals()){
+  
         let trx = Vec.new<(Text, Value)>();
         let trxtop = Vec.new<(Text, Value)>();
 
-        Vec.add(trx, ("tid", #Nat(token_id)));
-        Vec.add(trx, ("op", #Text("30revoke")));
+        Vec.add(trx, ("tid", #Nat(revokeArg.token_id)));
+        Vec.add(trx, ("op", #Text("37revoke")));
+        Vec.add(trx, ("btype", #Text("37revoke")));
         Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
-        Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = caller; subaccount = revokeArgs.from_subaccount})));
-        Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
+        Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = caller; subaccount = revokeArg.from_subaccount})));
+        switch(revokeArg.spender){
+          case(null){};
+          case(?spender){
+            Vec.add(trx, ("spender", environment.icrc7.accountToValue(spender)));
+          }
+        };
 
         switch(memo){
           case(null){};
@@ -990,7 +1030,7 @@ module {
           };
         };
 
-        switch(revokeArgs.created_at_time){
+        switch(revokeArg.created_at_time){
           case(null){};
           case(?val){
             Vec.add(trx, ("ts", #Nat(Nat64.toNat(val))));
@@ -999,12 +1039,12 @@ module {
 
         let txMap = #Map(Vec.toArray(trx));
         let txTopMap = #Map(Vec.toArray(trxtop));
-        let preNotification = {
-            spender = thisItem;
-            token_id = token_id;
-            from = {owner = caller; subaccount = revokeArgs.from_subaccount};
-            created_at_time = revokeArgs.created_at_time;
-            memo = revokeArgs.memo;
+        let preNotification : RevokeTokenNotification = {
+            spender = revokeArg.spender;
+            token_id = revokeArg.token_id;
+            from = {owner = caller; subaccount = revokeArg.from_subaccount};
+            created_at_time = revokeArg.created_at_time;
+            memo = revokeArg.memo;
           };
 
         let(finaltx, finaltxtop, notification) : (Value, ?Value, RevokeTokenNotification) = switch(environment.can_revoke_token_approval){
@@ -1015,12 +1055,7 @@ module {
             switch(remote_func(txMap, ?txTopMap, preNotification)){
               case(#ok(val)) val;
               case(#err(tx)){
-                Vec.add(list, {
-                  token_id = token_id;
-                  spender = ?thisItem;
-                  revoke_result = #Err(#GenericError({error_code = 394; message = tx}));
-                });
-                continue proc;
+                return  ?#Err(#GenericError({error_code = 394; message = tx}));
               };
             };
           };
@@ -1033,30 +1068,20 @@ module {
             switch(environment.icrc7.add_local_ledger(finaltxtop, finaltx)){
               case(#ok(val)) val;
               case(#err(err)){
-                Vec.add(list, {
-                  token_id = token_id;
-                  spender = ?thisItem;
-                  revoke_result = #Err(#GenericError({error_code = 394; message = err}));
-                });
-                continue proc;
+                return ?#Err(#GenericError({error_code = 394; message = debug_show(err)}));
               };
             };
           };
-          case(?val) val(finaltx, finaltxtop);
+          case(?val) val<system>(finaltx, finaltxtop);
         };
+
+        let result = revoke_approvals(?notification.token_id, notification.spender, notification.from.subaccount, ?owner);
 
         for(thisEvent in Vec.vals(token_revoked_listeners)){
           thisEvent.1(notification, transaction_id);
         };
 
-        Vec.add<RevokeTokensResponseItem>(list, {
-          token_id = token_id;
-          spender = ?thisItem;
-          revoke_result = #Ok(transaction_id);
-        })
-      };
-
-      return Vec.toArray(list);
+      return ?#Ok(transaction_id);
     };
 
     /// Revokes approvals and removes them from records and indexes, for a specified token ID and spender.
@@ -1158,10 +1183,10 @@ module {
     ///     - from: `?Account` - The previous owner's account.
     ///     - to: `Account` - The new owner's account.
     ///     - trx_id: `Nat` - The unique identifier for the transfer transaction.
-    private func token_transferred(transfer: TransferNotification, trx_id: Nat) : (){
+    private func token_transferred<system>(transfer: TransferNotification, trx_id: Nat) : (){
       debug if(debug_channel.announce) D.print("token_transfered was called " # debug_show((transfer.token_id, transfer.from, transfer.to, trx_id)));
       //clear all approvals for this token
-      //note: we do not have to log these revokes to the transaction log becasue ICRC30 defines that all approvals are revoked when a token is transfered.
+      //note: we do not have to log these revokes to the transaction log becasue ICRC37 defines that all approvals are revoked when a token is transfered.
       ignore revoke_approvals(?transfer.token_id, null, null, ?transfer.from);
     };
 
@@ -1171,89 +1196,89 @@ module {
     ///     - from: `?Account` - The previous owner's account.
     ///     - to: `Account` - The new owner's account.
     ///     - trx_id: `Nat` - The unique identifier for the transfer transaction.
-    private func token_burned(burn: BurnNotification, trx_id: Nat) : (){
+    private func token_burned<system>(burn: BurnNotification, trx_id: Nat) : (){
       debug if(debug_channel.announce) D.print("burntransfered was called " # debug_show((burn.token_id, burn.from, burn.to, trx_id)));
       //clear all approvals for this token
-      //note: we do not have to log these revokes to the transaction log becasue ICRC30 defines that all approvals are revoked when a token is transfered.
+      //note: we do not have to log these revokes to the transaction log becasue ICRC37 defines that all approvals are revoked when a token is transfered.
       ignore revoke_approvals(?burn.token_id, null, null, ?burn.from);
     };
 
     //registers the private token_transfered event with the ICRC7 component so that approvals can be cleared when a token is transfered.
-    environment.icrc7.register_token_transferred_listener("icrc30", token_transferred);
-    environment.icrc7.register_token_burn_listener("icrc30", token_burned);
+    environment.icrc7.register_token_transferred_listener("ICRC37", token_transferred);
+    environment.icrc7.register_token_burn_listener("ICRC37", token_burned);
 
-    /// Revokes a single token transfer approval
+    /// Revokes a token transfer approvals
     /// - Parameters:
     ///     - caller: `Principal` - The principal of the user initiating the revoke action.
-    ///     - revokeArgs: `RevokeCollectionArgs` - The arguments specifying the revoke action details.
-    /// - Returns: `[Account]` - A list of spenders who were affected by the revocation.
-    public func revoke_token(caller : Principal, revokeArgs: RevokeTokensArgs) : Result.Result<RevokeTokensResponse, Text> {
-
-      //validate
-
-      //test that the memo is not too large
-      let ?(memo) = testMemo(revokeArgs.memo) else return #err("invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits");
-
-      //make sure the approval is not too old or too far in the future
-      let created_at_time = switch(testCreatedAt(revokeArgs.created_at_time, environment)){
-        case(#ok(val)) val;
-        case(#Err(#TooOld)) return #ok(#Err(#TooOld));
-        case(#Err(#InTheFuture(val))) return  #ok(#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))} )));
-      };
+    ///     - revokeArgs: `RevokeCollectionApprovalArg` - The arguments specifying the revoke action details.
+    /// - Returns: Result.Result<[?RevokeTokenApprovalResult], Text>
+    public func revoke_tokens<system>(caller : Principal, revokeArgs: [RevokeTokenApprovalArg]) : Result.Result<[?RevokeTokenApprovalResult], Text> {
 
       //check that the batch isn't too big
         let safe_batch_size = state.ledger_info.max_revoke_approvals;
 
-        if(revokeArgs.token_ids.size() > safe_batch_size){
-          return #err("too many approvals revoked at one time");
-          /* return [{
-            token_id = revokeArgs.token_ids[0]; 
-            spender = revokeArgs.spender; 
-            revoke_result =#Err(#GenericError({error_code = 15; message = "too many approvals revoked at one time"}))
-            }]; */
+        if(revokeArgs.size() > safe_batch_size){
+          return #ok([?#Err(#GenericBatchError({message = "too many approvals revoked at one time"; error_code = 888;}))]);
+
         };
 
-      if(revokeArgs.token_ids.size() == 0) return #err("empty token_ids");
+        let list = Vec.new<?RevokeTokenApprovalResult>();
 
-      if(hasDupes(revokeArgs.token_ids)) return #err("duplicate tokesn in token_ids");
-      
-      let list = Vec.new<RevokeTokensResponseItem>();
-      for(x in revokeArgs.token_ids.vals()) { 
-          debug if(debug_channel.revoke) D.print("revoking approval for token" # Nat.toText(x));
-          let result = revoke_token_approval(caller, x, revokeArgs);
-
-          for(thisItem in result.vals()){
-            Vec.add<RevokeTokensResponseItem>(list, thisItem)
+        label proc for(x in revokeArgs.vals()) {
+            //test that the memo is not too large
+          let ?(memo) = testMemo(x.memo) else {
+            Vec.add(list, ?#Err(#GenericBatchError({message="invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits"; error_code=777})));
+             return #ok(Vec.toArray(list));
           };
+
+          //make sure the approval is not too old or too far in the future
+          let created_at_time = switch(testCreatedAt(x.created_at_time, environment)){
+            case(#ok(val)) val;
+            case(#Err(#TooOld)) {
+              Vec.add(list,?#Err(#TooOld));
+              continue proc;
+            };
+            case(#Err(#InTheFuture(val))){
+              Vec.add(list, ?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))} )));
+              continue proc;
+            };
+          };
+  
+          debug if(debug_channel.revoke) D.print("revoking approval for token" # Nat.toText(x.token_id));
+          let result = revoke_token_approval<system>(caller, x);
+
+          
+          Vec.add<?RevokeTokenApprovalResult>(list, result)
+          
       };
 
-      #ok(#Ok(Vec.toArray(list)));
+      #ok(Vec.toArray(list));
     };
 
     /// Approves a collection by setting a universal spender for all tokens within a collection.
     /// - Parameters:
     ///     - caller: `Principal` - The principal of the user initiating the approval operation.
     ///     - approval: `ApprovalInfo` - Approval settings including spender and optional expiry.
-    /// - Returns: `Result<ApprovalResult, Text>` - A result that includes approval transaction ID or an error text.
-    public func approve_collection_transfers(caller: Principal, approval: ApprovalInfo) : Result.Result<ApprovalResult, Text> {
+    /// - Returns: `Result<ApproveTokenResult, Text>` - A result that includes approval transaction ID or an error text.
+    public func approve_collection_transfer<system>(caller: Principal, approval: Service.ApproveCollectionArg) : Result.Result<?ApproveTokenResult, Text> {
 
       //test that the memo is not too large
-      let ?(memo) = testMemo(approval.memo) else return #err("invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits");
+      let ?(memo) = testMemo(approval.approval_info.memo) else return #ok(?#Err(#GenericError({message= "invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits"; error_code=48575})));
 
       //test that the expires is not in the past
-      let ?(expires_at) = testExpiresAt(approval.expires_at) else return #err("already expired");
+      let ?(expires_at) = testExpiresAt(approval.approval_info.expires_at) else return #ok(?#Err(#GenericError({message= "already expired"; error_code=48575})));
 
 
       //make sure the approval is not too old or too far in the future
-      let created_at_time = switch(testCreatedAt(approval.created_at_time, environment)){
+      let created_at_time = switch(testCreatedAt(approval.approval_info.created_at_time, environment)){
         case(#ok(val)) val;
-        case(#Err(#TooOld)) return #ok(#Err(#TooOld));
-        case(#Err(#InTheFuture(val))) return  #ok(#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
+        case(#Err(#TooOld)) return #ok(?#Err(#TooOld));
+        case(#Err(#InTheFuture(val))) return  #ok(?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
       };
 
       //make sure the account doesn't have too many approvals
 
-      let current_approvals = switch(Map.get(state.indexes.owner_to_approval_account, ahash, {owner = caller; subaccount = approval.from_subaccount})){
+      let current_approvals = switch(Map.get(state.indexes.owner_to_approval_account, ahash, {owner = caller; subaccount = approval.approval_info.from_subaccount})){
         case(?val){
           Set.size(val);
         };
@@ -1263,25 +1288,25 @@ module {
       debug if(debug_channel.approve) D.print("number of approvals" # debug_show(current_approvals));
 
       if(current_approvals >= state.ledger_info.max_approvals_per_token_or_collection){
-        return #err("Too many approvals from account" # debug_show({owner = caller; subaccount = approval.from_subaccount}));
+        return  #ok(?#Err(#GenericError({message= "Too many approvals from account" # debug_show({owner = caller; subaccount = approval.approval_info.from_subaccount}); error_code=48575})));
       };
 
-      let result : (?Nat, ApprovalResult) = approve_transfer(environment, caller, null, approval);
+      let result : (?Nat, ApproveTokenResult) = approve_transfer<system>(environment, caller, null, approval.approval_info);
 
       debug if(debug_channel.approve) D.print("Finished putting approval " # debug_show(result, approval));
       
       switch(result.0, result.1){
         case(?val, _) {// should be unreachable;
-          return #err("unreachable null token"); 
+          return  #ok(?#Err(#GenericError({message= "unreachable null token" ; error_code=48575})));
         }; 
-        case(null, #Ok(val)) return #ok(#Ok(val));
-        case(null, #Err(err)) return #ok(#Err(err));
+        case(null, #Ok(val)) return #ok(?#Ok(val));
+        case(null, #Err(err)) return #ok(?#Err(err));
       };
     };
 
 
     /// approve the transfer of a token by a spender
-    private func approve_transfer(environment: Environment, caller: Principal, token_id: ?Nat, approval: ApprovalInfo) : (?Nat, ApprovalResult) {
+    private func approve_transfer<system>(environment: Environment, caller: Principal, token_id: ?Nat, approval: ApprovalInfo) : (?Nat, ApproveTokenResult) {
       
       if(approval.spender.owner == caller) return (token_id, #Err(#Unauthorized)); //can't make yourself a spender;
 
@@ -1325,7 +1350,8 @@ module {
               case(_){};
             };
           };
-          Vec.add(trx,("op", #Text("30appr_coll")));
+          Vec.add(trx,("op", #Text("37appr_coll")));
+          Vec.add(trxtop,("btype", #Text("37appr_coll")));
         };
         case(?token_id){
           
@@ -1341,7 +1367,8 @@ module {
           if(owner.subaccount != approval.from_subaccount) return (?token_id, #Err(#Unauthorized)); //from_subaccount must match owner;
 
           Vec.add(trx,("tid", #Nat(token_id)));
-          Vec.add(trx,("op", #Text("30appr")));
+          Vec.add(trx,("op", #Text("37appr")));
+          Vec.add(trxtop,("btype", #Text("37appr")));
         };
       };
 
@@ -1427,7 +1454,7 @@ module {
               };
             };
           };
-          case(?val) val(finaltx, finaltxtop);
+          case(?val) val<system>(finaltx, finaltxtop);
       };
 
       //find existing approval
@@ -1490,7 +1517,7 @@ module {
       };
 
       environment.icrc7.cleanUpRecents();
-      cleanUpApprovalsRoutine();
+      cleanUpApprovalsRoutine<system>();
 
       debug if(debug_channel.approve) D.print("Finished putting approval " # debug_show(token_id, approval));
 
@@ -1504,13 +1531,15 @@ module {
     };
 
     
-    private func transfer_token(caller: Principal, token_id: Nat, transferFromArgs: TransferFromArgs) : TransferFromResponseItem {
+    private func transfer_token<system>(caller: Principal,  transferFromArgs: TransferFromArg) : Result.Result<TransferFromResult, Text> {
 
         //make sure that either the caller is the owner or an approved spender
-        let ?nft = Map.get<Nat,NFT>(environment.icrc7.get_state().nfts, Map.nhash, token_id) else return {token_id = token_id; transfer_result = #Err(#NonExistingTokenId)};
+        let ?nft = Map.get<Nat,NFT>(environment.icrc7.get_state().nfts, Map.nhash, transferFromArgs.token_id) else return #ok(#Err(#NonExistingTokenId));
 
-        let owner = switch(environment.icrc7.get_token_owner_canonical(token_id)){
-          case(#err(e)) return { token_id = token_id; transfer_result = #Err(#GenericError(e))};
+        if(nft.owner == null) return #ok(#Err(#Unauthorized));
+
+        let owner = switch(environment.icrc7.get_token_owner_canonical(transferFromArgs.token_id)){
+          case(#err(e)) return #ok(#Err(#GenericError(e)));
           case(#ok(val)) val;
         };
 
@@ -1523,7 +1552,7 @@ module {
         debug if(debug_channel.approve) D.print("checking owner and caller" # debug_show(owner, caller));
 
         if(owner.owner == caller){
-          return {token_id = token_id; transfer_result= #Err(#Unauthorized)}; //can't spend your own token;
+          return #ok(#Err(#Unauthorized)); //can't spend your own token;
         };
 
         switch(Map.get<(?Nat,Account),ApprovalInfo>(state.token_approvals, apphash, (null, potential_spender))){
@@ -1543,7 +1572,7 @@ module {
         };
 
         if(spender == null){
-          switch(Map.get<(?Nat,Account),ApprovalInfo>(state.token_approvals, apphash, (?token_id, potential_spender))){
+          switch(Map.get<(?Nat,Account),ApprovalInfo>(state.token_approvals, apphash, (?transferFromArgs.token_id, potential_spender))){
             case(null){};
             case(?val){
               switch(val.expires_at){
@@ -1564,11 +1593,11 @@ module {
 
 
         if(spender == null){
-          return {token_id = token_id; transfer_result= #Err(#Unauthorized)}; //only the spender can spend;
+          return #ok(#Err(#Unauthorized)); //only the spender can spend;
         };
       
 
-        if(owner.subaccount != transferFromArgs.from.subaccount) return { token_id = token_id;transfer_result =  #Err(#Unauthorized)}; //from_subaccount must match owner;
+        if(owner.subaccount != transferFromArgs.from.subaccount) return #ok(#Err(#Unauthorized)); //from_subaccount must match owner;
 
         let trx = Vec.new<(Text, Value)>();
         let trxtop = Vec.new<(Text, Value)>();
@@ -1587,9 +1616,10 @@ module {
           };
         };
 
-        Vec.add(trx,("tid", #Nat(token_id)));
+        Vec.add(trx,("tid", #Nat(transferFromArgs.token_id)));
         Vec.add(trx,("ts", #Nat(Int.abs(environment.get_time()))));
-        Vec.add(trx,("op", #Text("30xfer")));
+        Vec.add(trx,("op", #Text("37xfer")));
+        Vec.add(trxtop,("btype", #Text("37xfer")));
         
         Vec.add(trx,("from", environment.icrc7.accountToValue({owner = transferFromArgs.from.owner; subaccount = transferFromArgs.from.subaccount})));
         Vec.add(trx,("to", environment.icrc7.accountToValue({owner = transferFromArgs.to.owner; subaccount = transferFromArgs.to.subaccount})));
@@ -1605,9 +1635,14 @@ module {
         let preNotification = {
           spender = switch(spender){
             case(?val)val;
-            case(null){{owner = environment.canister(); subaccount = null;}}; //unreachable;
+            case(null){
+              {
+                owner = environment.canister(); 
+                subaccount = null;
+              }
+              }; //unreachable;
           };
-          token_id = token_id;
+          token_id = transferFromArgs.token_id;
           from = transferFromArgs.from;
           to = transferFromArgs.to;
           created_at_time = transferFromArgs.created_at_time;
@@ -1623,39 +1658,38 @@ module {
               case(#ok(val)) val;
               case(#err(tx)){
                 
-                return {
-                  token_id = token_id;
-                  transfer_result = #Err(#GenericError({error_code = 394; message = tx}));
-                };
+                return #ok(#Err(#GenericError({error_code = 394; message = tx})));
               };
             };
           };
         };
 
-        let transaction_result =  environment.icrc7.finalize_token_transfer(caller, {transferFromArgs with
-        subaccount = transferFromArgs.from.subaccount} : ICRC7.TransferArgs, trx, trxtop, token_id);
+        let ?transaction_result =  environment.icrc7.finalize_token_transfer<system>(caller, {notification with
+        from_subaccount = notification.from.subaccount} : ICRC7.TransferArg, trx, trxtop, notification.token_id) else
+        return #ok(#Err(#GenericError({error_code = 2345; message = "unreachable null transaction"}))); 
 
-        switch(transaction_result.transfer_result){
+        let trxresult = switch(transaction_result){
           case(#Ok(transaction_id)){
             for(thisEvent in Vec.vals(transfer_from_listeners)){
               thisEvent.1(notification, transaction_id);
             };
+            return #ok(#Ok(transaction_id));
           };
-          case(_){};
+          case(#Err(err)){
+            return #ok(#Err(err));
+          };
         };
-    
-        return transaction_result;
     };
 
     /// Transfers tokens to a new owner as specified in the transferFromArgs.
     /// - Parameters:
     ///     - caller: `Principal` - The principal of the user initiating the transfer.
-    ///     - transferFromArgs: `TransferFromArgs` - The arguments specifying the transfer details.
-    /// - Returns: `Result<TransferFromResponse, Text>` - The result of the transfer operation, containing either a successful response or an error text.
+    ///     - transferFromArgs: `TransferFromArg` - The arguments specifying the transfer details.
+    /// - Returns: `Result<TransferFromResult, Text>` - The result of the transfer operation, containing either a successful response or an error text.
     ///
     /// Example:
     /// ```motoko
-    /// let transferResult = myICRC30Instance.transfer_from(
+    /// let transferResult = myICRC37Instance.transfer_from(
     ///   caller,
     ///   {
     ///     from = { owner = ownerPrincipal; subaccount = null };
@@ -1667,48 +1701,66 @@ module {
     ///   }
     /// );
     /// ```
-    public func transfer(caller: Principal, transferFromArgs: TransferFromArgs) : Result.Result<TransferFromResponse, Text> {
+    public func transfer<system>(caller: Principal, transferFromArgs: [TransferFromArg]) : Result.Result<[?TransferFromResult], Text> {
 
       //check that the batch isn't too big
       let safe_batch_size = environment.icrc7.get_ledger_info().max_update_batch_size;
 
-      if(transferFromArgs.token_ids.size() == 0){
+      if(transferFromArgs.size() == 0){
         return #err("no tokens provided");
         //return [(transferFromArgstoken_ids[0], #Err(#GenericError({error_code = 12; message = "too many tokens transfered at one time"})))];
       };
 
-      if(hasDupes(transferFromArgs.token_ids)){
-        return #err("duplicate tokens");
+
+      if(transferFromArgs.size() > safe_batch_size){
+        return #ok([?#Err(#GenericBatchError({message = "too many tokens transfered at one time"; error_code= 555}))]);
         //return [(transferFromArgstoken_ids[0], #Err(#GenericError({error_code = 12; message = "too many tokens transfered at one time"})))];
       };
 
-      if(transferFromArgs.token_ids.size() > safe_batch_size){
-        return #err("too many tokens transfered at one time");
-        //return [(transferFromArgstoken_ids[0], #Err(#GenericError({error_code = 12; message = "too many tokens transfered at one time"})))];
+      let results = Vec.new<?TransferFromResult>();
+
+      label proc for(thisItem in transferFromArgs.vals()){
+        //check to and from account not equal
+        if(account_eq(thisItem.to, thisItem.from)){
+          Vec.add(results, ?#Err(#GenericError({message = "cannot transfer tokens to same account"; error_code=444})));
+          continue proc;
+        };
+
+        //test that the memo is not too large
+        let ?(memo) = testMemo(thisItem.memo) else {
+          Vec.add(results, ?#Err(#GenericError({message = "invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits"; error_code=222})));
+          continue proc;
+        };
+
+        
+        //make sure the approval is not too old or too far in the future
+        switch(testCreatedAt(thisItem.created_at_time, environment)){
+          case(#ok(val)) {};
+          case(#Err(#TooOld)){
+            Vec.add(results,?#Err(#TooOld));
+            continue proc;
+          };
+          case(#Err(#InTheFuture(val))) {
+            Vec.add(results, ?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
+            continue proc;
+          };
+        };
+
+        debug if(debug_channel.transfer) D.print("calling token transfer" # debug_show(thisItem));
+  
+        switch(transfer_token<system>(caller, thisItem)){
+          case(#ok(result)){
+            Vec.add(results, ?result);
+          };
+          case(#err(err)){
+            Vec.add(results, ?#Err(#GenericError({error_code = 394; message = err})));
+          };  
+        };
+
+        return #ok(Vec.toArray(results));
       };
 
-      //check to and from account not equal
-      if(account_eq(transferFromArgs.to, transferFromArgs.from)){
-        return #err("cannot transfer tokens to same account");
-      };
-
-      //test that the memo is not too large
-      let ?(memo) = testMemo(transferFromArgs.memo) else return #err("invalid memo. must be less than " # debug_show(environment.icrc7.get_ledger_info().max_memo_size) # " bits");
-
-      
-      //make sure the approval is not too old or too far in the future
-      switch(testCreatedAt(transferFromArgs.created_at_time, environment)){
-        case(#ok(val)) {};
-        case(#Err(#TooOld)) return #ok(#Err(#TooOld));
-        case(#Err(#InTheFuture(val))) return  #ok(#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
-      };
-
-      debug if(debug_channel.transfer) D.print("passed checks and calling token transfer");
-
-      return #ok(#Ok(Array.map<Nat, TransferFromResponseItem>(transferFromArgs.token_ids,  func(x) : TransferFromResponseItem { 
-          return transfer_token(caller, x, transferFromArgs);
-        }
-      )));
+      return #ok(Vec.toArray(results));
     };
 
     /// Retrieves statistics related to the ledger and approvals.
