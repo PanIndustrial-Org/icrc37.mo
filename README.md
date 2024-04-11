@@ -10,7 +10,7 @@ mops add icrc37.mo
 
 ## Usage
 ```motoko
-import Icrc30Mo "mo:icrc37.mo";
+import Icrc37Mo "mo:icrc37.mo";
 ```
 
 ## Initialization

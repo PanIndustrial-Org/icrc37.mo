@@ -179,7 +179,7 @@ module {
   /// The `ICRC37` class encapsulates the logic for managing approvals and transfers of NFTs.
   /// Within the class, we have various methods such as `get_ledger_info`, `approve_transfers`, 
   /// `is_approved`, `get_token_approvals`, `revoke_collection_approvals`, and many others
-  /// that assist in handling the ICRC-30 standard functionalities like getting and setting 
+  /// that assist in handling the 7 standard functionalities like getting and setting 
   /// approvals, revoking them, and performing transfers of NFTs.
   ///
   /// The methods often utilize helper functions like `testMemo`, `testExpiresAt`, `testCreatedAt`, 
@@ -358,8 +358,8 @@ module {
       };
     };
 
-    /// Gets ledger information for the associated ICRC-30 NFT collection.
-    /// - Returns: `LedgerInfo` - The current ledger information for the ICRC-30 NFT collection.
+    /// Gets ledger information for the associated ICRC-37 NFT collection.
+    /// - Returns: `LedgerInfo` - The current ledger information for the ICRC-37 NFT collection.
     public func get_ledger_info() :  LedgerInfo {
       return state.ledger_info;
     };
