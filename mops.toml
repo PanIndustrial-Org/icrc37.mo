@@ -1,6 +1,6 @@
 [package]
 name = "icrc37-mo"
-version = "0.4.0"
+version = "0.4.1"
 description = "icrc37 for motoko"
 repository = "https://github.com/PanIndustrial-Org/icrc37.mo"
 keywords = [ "nft" ]
