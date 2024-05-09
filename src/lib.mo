@@ -221,7 +221,8 @@ module {
 
     public func supported_blocktypes() : [(Text,Text)] {
       return[
-        ("37appr","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
+        ("37approve","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
+        ("37approve_coll","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
         ("37revoke","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
         ("37revoke_coll","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
         ("37xfer","https://github.com/dfinity/ICRC/blob/main/ICRCs/ICRC-37/ICRC-37.md"),
@@ -1350,8 +1351,8 @@ module {
               case(_){};
             };
           };
-          Vec.add(trx,("op", #Text("37appr_coll")));
-          Vec.add(trxtop,("btype", #Text("37appr_coll")));
+          Vec.add(trx,("op", #Text("37approve_coll")));
+          Vec.add(trxtop,("btype", #Text("37approve_coll")));
         };
         case(?token_id){
           
@@ -1367,8 +1368,8 @@ module {
           if(owner.subaccount != approval.from_subaccount) return (?token_id, #Err(#Unauthorized)); //from_subaccount must match owner;
 
           Vec.add(trx,("tid", #Nat(token_id)));
-          Vec.add(trx,("op", #Text("37appr")));
-          Vec.add(trxtop,("btype", #Text("37appr")));
+          Vec.add(trx,("op", #Text("37approve")));
+          Vec.add(trxtop,("btype", #Text("37approve")));
         };
       };
 
