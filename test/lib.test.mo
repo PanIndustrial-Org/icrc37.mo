@@ -766,6 +766,20 @@ testsys<system>("Transfer a token to another account after collection approval",
 
   assert(ownerResponse.owner == testCanister);
   assert(ownerResponse.subaccount == null);
+
+  let tokens_of = icrc7.tokens_of({owner = testCanister; subaccount = null}, null, null);
+
+  D.print("tokens_of" # debug_show(tokens_of));
+
+  assert(tokens_of[0] == 1);
+
+  let tokens_of2 = icrc7.tokens_of(testOwnerAccount, null, null);
+
+  D.print("tokens_of2" # debug_show(tokens_of2));
+
+  assert(tokens_of2.size() == 0);
+
+
       
       
 });

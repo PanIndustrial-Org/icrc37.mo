@@ -1665,7 +1665,7 @@ module {
           };
         };
 
-        let ?transaction_result =  environment.icrc7.finalize_token_transfer<system>(caller, {notification with
+        let ?transaction_result =  environment.icrc7.finalize_token_transfer<system>(transferFromArgs.from.owner, {notification with
         from_subaccount = notification.from.subaccount} : ICRC7.TransferArg, trx, trxtop, notification.token_id) else
         return #ok(#Err(#GenericError({error_code = 2345; message = "unreachable null transaction"}))); 
 
