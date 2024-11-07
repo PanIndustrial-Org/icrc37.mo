@@ -10,11 +10,13 @@ import Iter "mo:base/Iter";
 import Result "mo:base/Result";
 import Blob "mo:base/Blob";
 import Text "mo:base/Text";
+import Time "mo:base/Time";
 import RepIndy "mo:rep-indy-hash";
 
 //todo: switch to mops
-import ICRC7 "mo:icrc7-mo";
+import ICRC7 "../../icrc7.mo/src";
 import ServiceLib "service";
+import ClassPlusLib "../../../../ICDevs/projects/ClassPlus/src/";
 
 module {
 
@@ -61,6 +63,7 @@ module {
   public type State =               MigrationTypes.State;
   public type Stats =               MigrationTypes.Current.Stats;
   public type InitArgs =            MigrationTypes.Args;
+  public type InitArgList =         MigrationTypes.ArgList;
   public type Error =               MigrationTypes.Current.Error;
   public type Account =             MigrationTypes.Current.Account;
   public type LedgerInfo =          MigrationTypes.Current.LedgerInfo;
@@ -167,6 +170,32 @@ module {
     return false;
   };
 
+  public type ClassPlus = ClassPlusLib.ClassPlus<
+    ICRC37, 
+    State,
+    InitArgs,
+    Environment>;
+
+  public func ClassPlusGetter(item: ?ClassPlus) : () -> ICRC37 {
+    ClassPlusLib.ClassPlusGetter<ICRC37, State, InitArgs, Environment>(item);
+  };
+
+  public func Init<system>(config : {
+      manager: ClassPlusLib.ClassPlusInitializationManager;
+      initialState: State;
+      args : ?InitArgList;
+      pullEnvironment : ?(() -> Environment);
+      onInitialize: ?(ICRC37 -> async*());
+      onStorageChange : ((State) ->())
+    }) :()-> ICRC37{
+
+      ClassPlusLib.ClassPlus<system,
+        ICRC37, 
+        State,
+        InitArgList,
+        Environment>({config with constructor = ICRC37}).get;
+    };
+
 
   /// #class ICRC37 
   /// Initializes the state of the ICRC37 class.
@@ -195,18 +224,25 @@ module {
   /// querying for different approval states, and managing the transfer of tokens.
   ///    
   /// Additional functions like `get_stats` provide insight into the current state of NFT approvals.
-  public class ICRC37(stored: ?State, canister: Principal, environment: Environment){
+  public class ICRC37(stored: ?State, caller: Principal, canisterId: Principal, args: InitArgs, _environment: ?Environment, storageChange: (State) -> ()){
+
+    public let environment : Environment = switch(_environment){
+      case(?val) val;
+      case(null) D.trap("No Environment Set");
+    };
 
     var state : CurrentState = switch(stored){
       case(null) {
-        let #v0_1_0(#data(foundState)) = init(initialState(),currentStateVersion, null, canister);
+        let #v0_1_0(#data(foundState)) = init(initialState(),currentStateVersion, args, caller, canisterId);
         foundState;
       };
       case(?val) {
-        let #v0_1_0(#data(foundState)) = init(val,currentStateVersion, null, canister);
+        let #v0_1_0(#data(foundState)) = init(val,currentStateVersion, args, caller, canisterId);
         foundState;
       };
     };
+
+    storageChange(#v0_1_0(#data(state)));
 
     private let token_approved_listeners = Vec.new<(Text, TokenApprovedListener)>();
     private let collection_approved_listeners = Vec.new<(Text, CollectionApprovedListener)>();
@@ -437,7 +473,7 @@ module {
             continue proc;
           };
           case(#Err(#InTheFuture(val))){
-            Vec.add(results, ?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
+            Vec.add(results, ?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(Time.now()))})));
             continue proc;
           };
         };
@@ -492,7 +528,7 @@ module {
       switch(val){
         case(null) return ?null;
         case(?val){
-          if(Nat64.toNat(val) < environment.get_time()){
+          if(Nat64.toNat(val) < Time.now()){
             return null;
           };
           return ??val;
@@ -508,10 +544,10 @@ module {
       switch(val){
         case(null) return #ok(null);
         case(?val){
-          if(Nat64.toNat(val) > environment.get_time() + environment.icrc7.get_ledger_info().permitted_drift){
-            return #Err(#InTheFuture(Nat64.fromNat(Int.abs(environment.get_time()))));
+          if(Nat64.toNat(val) > Time.now() + environment.icrc7.get_ledger_info().permitted_drift){
+            return #Err(#InTheFuture(Nat64.fromNat(Int.abs(Time.now()))));
           };
-          if(Nat64.toNat(val) < environment.get_time() - environment.icrc7.get_ledger_info().permitted_drift){
+          if(Nat64.toNat(val) < Time.now() - environment.icrc7.get_ledger_info().permitted_drift){
             return #Err(#TooOld);
           };
           return #ok(?val);
@@ -700,8 +736,8 @@ module {
 
               Vec.add(trx, ("op", #Text("37revoke_coll")));
               Vec.add(trxtop, ("btype", #Text("37revoke_coll")));
-              Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
-              Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = environment.canister(); subaccount = null})));
+              Vec.add(trxtop, ("ts", #Nat(Int.abs(Time.now()))));
+              Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = canisterId; subaccount = null})));
               Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
               Vec.add(trxtop, ("memo", #Blob(memo)));
               
@@ -710,8 +746,8 @@ module {
               let txTopMap = #Map(Vec.toArray(trxtop));
               let preNotification = {
                   spender = ?thisItem;
-                  from = {owner = environment.canister(); subaccount = null};
-                  created_at_time = ?Nat64.fromNat(Int.abs(environment.get_time()));
+                  from = {owner = canisterId; subaccount = null};
+                  created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
                   memo = ?memo;
                 };
 
@@ -745,9 +781,9 @@ module {
               let trxtop = Vec.new<(Text, Value)>();
               Vec.add(trx, ("op", #Text("37revoke")));
               Vec.add(trxtop, ("btype", #Text("37revoke")));
-              Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
+              Vec.add(trxtop, ("ts", #Nat(Int.abs(Time.now()))));
               Vec.add(trx, ("tid", #Nat(token_id)));
-              Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = environment.canister(); subaccount = null})));
+              Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = canisterId; subaccount = null})));
               Vec.add(trx, ("spender", environment.icrc7.accountToValue(thisItem)));
               Vec.add(trxtop, ("memo", #Blob(memo)));
 
@@ -756,8 +792,8 @@ module {
               let preNotification : RevokeTokenNotification = {
                 spender = ?thisItem;
                 token_id = token_id;
-                from = {owner = environment.canister(); subaccount = null};
-                created_at_time = ?Nat64.fromNat(Int.abs(environment.get_time()));
+                from = {owner = canisterId; subaccount = null};
+                created_at_time = ?Nat64.fromNat(Int.abs(Time.now()));
                 memo = ?memo;
               };
 
@@ -913,7 +949,7 @@ module {
         let trxtop = Vec.new<(Text, Value)>();
         Vec.add(trx, ("op", #Text("37revoke_coll")));
         Vec.add(trx, ("btype", #Text("37revoke_coll")));
-        Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
+        Vec.add(trxtop, ("ts", #Nat(Int.abs(Time.now()))));
         Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = caller; subaccount = thisItem.from_subaccount})));
         switch(thisItem.spender){
           case(null){};
@@ -1015,7 +1051,7 @@ module {
         Vec.add(trx, ("tid", #Nat(revokeArg.token_id)));
         Vec.add(trx, ("op", #Text("37revoke")));
         Vec.add(trx, ("btype", #Text("37revoke")));
-        Vec.add(trxtop, ("ts", #Nat(Int.abs(environment.get_time()))));
+        Vec.add(trxtop, ("ts", #Nat(Int.abs(Time.now()))));
         Vec.add(trx, ("from", environment.icrc7.accountToValue({owner = caller; subaccount = revokeArg.from_subaccount})));
         switch(revokeArg.spender){
           case(null){};
@@ -1240,7 +1276,7 @@ module {
               continue proc;
             };
             case(#Err(#InTheFuture(val))){
-              Vec.add(list, ?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))} )));
+              Vec.add(list, ?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(Time.now()))} )));
               continue proc;
             };
           };
@@ -1274,7 +1310,7 @@ module {
       let created_at_time = switch(testCreatedAt(approval.approval_info.created_at_time, environment)){
         case(#ok(val)) val;
         case(#Err(#TooOld)) return #ok(?#Err(#TooOld));
-        case(#Err(#InTheFuture(val))) return  #ok(?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
+        case(#Err(#InTheFuture(val))) return  #ok(?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(Time.now()))})));
       };
 
       //make sure the account doesn't have too many approvals
@@ -1373,7 +1409,7 @@ module {
         };
       };
 
-      Vec.add(trxtop,("ts", #Nat(Int.abs(environment.get_time()))));
+      Vec.add(trxtop,("ts", #Nat(Int.abs(Time.now()))));
      
       
       
@@ -1499,7 +1535,7 @@ module {
 
       Set.add<(?Nat, Account)>(existingIndex2, apphash, (token_id, approval.spender));
 
-      ignore Map.put<Blob, (Int,Nat)>(environment.icrc7.get_state().indexes.recent_transactions, Map.bhash, trxhash, (environment.get_time(), transaction_id));
+      ignore Map.put<Blob, (Int,Nat)>(environment.icrc7.get_state().indexes.recent_transactions, Map.bhash, trxhash, (Time.now(), transaction_id));
 
       switch(token_id){
         case(null){
@@ -1561,7 +1597,7 @@ module {
           case(?val){
             switch(val.expires_at){
               case(?expires_at){
-                if(Int.abs(environment.get_time()) < Nat64.toNat(expires_at)){
+                if(Int.abs(Time.now()) < Nat64.toNat(expires_at)){
                   spender := ?potential_spender;
                 };
               };
@@ -1578,7 +1614,7 @@ module {
             case(?val){
               switch(val.expires_at){
                 case(?expires_at){
-                  if(Int.abs(environment.get_time()) < Nat64.toNat(expires_at)){
+                  if(Int.abs(Time.now()) < Nat64.toNat(expires_at)){
                     spender := ?potential_spender;
                   };
                 };
@@ -1618,7 +1654,7 @@ module {
         };
 
         Vec.add(trx,("tid", #Nat(transferFromArgs.token_id)));
-        Vec.add(trx,("ts", #Nat(Int.abs(environment.get_time()))));
+        Vec.add(trx,("ts", #Nat(Int.abs(Time.now()))));
         Vec.add(trx,("op", #Text("37xfer")));
         Vec.add(trxtop,("btype", #Text("37xfer")));
         
@@ -1638,7 +1674,7 @@ module {
             case(?val)val;
             case(null){
               {
-                owner = environment.canister(); 
+                owner = canisterId; 
                 subaccount = null;
               }
               }; //unreachable;
@@ -1742,7 +1778,7 @@ module {
             continue proc;
           };
           case(#Err(#InTheFuture(val))) {
-            Vec.add(results, ?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(environment.get_time()))})));
+            Vec.add(results, ?#Err(#CreatedInFuture({ledger_time = Nat64.fromNat(Int.abs(Time.now()))})));
             continue proc;
           };
         };
