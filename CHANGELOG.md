@@ -1,5 +1,9 @@
 #Changelog
 
+## v0.5.1
+
+Fix Import Error
+
 ## v0.5.0
 
 - Updated to the class+ library.
