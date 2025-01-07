@@ -9,7 +9,7 @@ import SetLib "mo:map/Set";
 import Nat32 "mo:base/Nat32";
 import Result "mo:base/Result";
 //todo: switch to mops
-import ICRC7 "../../../../icrc7.mo/src";
+import ICRC7 "mo:icrc7-mo";
 
 module {
 
