@@ -1,6 +1,6 @@
 [package]
 name = "icrc37-mo"
-version = "0.4.2"
+version = "0.5.0"
 description = "icrc37 for motoko"
 repository = "https://github.com/PanIndustrial-Org/icrc37.mo"
 keywords = [ "nft" ]
@@ -16,8 +16,10 @@ stablebuffer_1_3_0 = "https://github.com/canscale/StableBuffer#v1.3.0@acdde6bb5b
 encoding_0_4_1 = "https://github.com/aviate-labs/encoding.mo#v0.4.1@2711d18727e954b11afc0d37945608512b5fbce2"
 vector = "0.4.1"
 rep-indy-hash = "0.1.1"
-icrc7-mo = "0.4.1"
+icrc7-mo = "0.5.0
+"
 map = "9.0.1"
+class-plus = "0.0.1"
 
 [dev-dependencies]
 test = "2.0.0"

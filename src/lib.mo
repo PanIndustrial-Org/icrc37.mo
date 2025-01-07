@@ -14,9 +14,9 @@ import Time "mo:base/Time";
 import RepIndy "mo:rep-indy-hash";
 
 //todo: switch to mops
-import ICRC7 "../../icrc7.mo/src";
+import ICRC7 "mo:icrc7-mo";
 import ServiceLib "service";
-import ClassPlusLib "../../../../ICDevs/projects/ClassPlus/src/";
+import ClassPlusLib "mo:class-plus";
 
 module {
 
@@ -1793,8 +1793,6 @@ module {
             Vec.add(results, ?#Err(#GenericError({error_code = 394; message = err})));
           };  
         };
-
-        return #ok(Vec.toArray(results));
       };
 
       return #ok(Vec.toArray(results));
