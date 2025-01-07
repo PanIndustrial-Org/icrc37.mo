@@ -4,12 +4,12 @@
 // you should also avoid importing these types anywhere in your project directly from here
 // use MigrationTypes.Current property instead
 
-import MapLib "mo:map9/Map";
-import SetLib "mo:map9/Set";
+import MapLib "mo:map/Map";
+import SetLib "mo:map/Set";
 import Nat32 "mo:base/Nat32";
 import Result "mo:base/Result";
 //todo: switch to mops
-import ICRC7 "mo:icrc7-mo";
+import ICRC7 "../../../../icrc7.mo/src";
 
 module {
 
@@ -273,13 +273,8 @@ module {
   
 
   public type Environment = {
-    canister : () -> Principal;
+
     icrc7 : ICRC7.ICRC7;
-    get_time : () -> Int;
-    refresh_state: () -> State;
-
-
-
     can_approve_token : ?((trx: Transaction, trxtop: ?Transaction, notification: TokenApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notification: TokenApprovalNotification), Text>);
 
     can_approve_collection : ?((trx: Transaction, trxtop: ?Transaction, notification: CollectionApprovalNotification) -> Result.Result<(trx: Transaction, trxtop: ?Transaction, notification: CollectionApprovalNotification), Text>);

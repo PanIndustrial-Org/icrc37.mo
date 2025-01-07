@@ -1,6 +1,6 @@
 import ICRC37 "../src";
 import Service "../src/service";
-import ICRC7 "mo:icrc7-mo";
+import ICRC7 "../../icrc7.mo/src";
 import Principal "mo:base/Principal";
 import CandyTypesLib "mo:candy_0_3_0/types";
 import CandyConv  "mo:candy_0_3_0/conversion";
@@ -16,8 +16,10 @@ import Map "mo:map9/Map";
 import Set "mo:map9/Set";
 import Opt "mo:base/Option";
 import D "mo:base/Debug";
+import Time "mo:base/Time";
 import {test; testsys} "mo:test";
 import Vec "mo:vector";
+import ClassPlusLib "../../../../ICDevs/projects/ClassPlus/src/";
 
 let testOwner = Principal.fromText("exoh6-2xmej-lux3z-phpkn-2i3sb-cvzfx-totbl-nzfcy-fxi7s-xiutq-mae");
 let testOwnerAccount = {
@@ -44,14 +46,14 @@ let baseCollection = {
   default_take_value = ?104;
   max_take_value = ?105;
   max_memo_size = ?512;
-  permitted_drift = null;
+  permitted_drift = ?10; //temp until we can test by manipulatint time.now
   tx_window = null;
   burn_account = null;
   supported_standards = null;
   deployer = testOwner;
 };
 
-let base30Collection = {
+let base37Collection = {
   max_approvals_per_token_or_collection = ?101;
   max_revoke_approvals = ?106;
   max_approvals = ?500;
@@ -72,7 +74,7 @@ func get_canister() : Principal{
   return testCanister;
 };
 
-let init_time = 1700925876000000000 : Nat64;
+let init_time = Nat64.fromNat(Int.abs(Time.now())) : Nat64;
 var test_time = init_time : Nat64;
 let one_day = 86_400_000_000_000: Nat64;
 let one_hour = one_day/24: Nat64;
@@ -92,36 +94,66 @@ func set_time(x : Nat64) : Nat64{
   return test_time;
 };
 
-var icrc7_migration_state = ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
 
-var icrc37_migration_state = ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
-let #v0_1_0(#data(icrc7_state_current)) = icrc7_migration_state; 
 
-let #v0_1_0(#data(icrc37_state_current)) = icrc37_migration_state; 
+
+
+var icrc7_migration_state = ICRC7.initialState();
 
 func get_icrc7_state(): ICRC7.CurrentState{
-  return icrc7_state_current;
+  let #v0_1_0(#data(icrc7_state_current)) = icrc7_migration_state; 
+  icrc7_state_current;
+}; 
+
+func getEnvironment_ICRC7() : ICRC7.Environment{
+  return base_environment_ICRC7;
 };
 
-func get_icrc37_state(): ICRC37.CurrentState{
-  return icrc37_state_current;
-};
+let base_environment_ICRC7 = {
 
-let base_environment= {
-  canister = get_canister;
-  get_time = get_time;
-  refresh_state = get_icrc7_state;
   log = null;
   add_ledger_transaction = null;
-  can_burn = null;
   can_mint = null;
+  can_burn = null;
   can_transfer = null;
   can_update = null;
 };
 
-func get_icrc37_environment(icrc7 : ICRC7.ICRC7) : ICRC37.Environment{
+func onInitializeICRC7(newClass : ICRC7.ICRC7) : async* (){
+  
+};
 
+func storageChangeICRC7(state : ICRC7.State) : (){
+    icrc7_migration_state := state;
+};
+
+func getICRC7Class<system>(args: ICRC7.InitArgs) : ICRC7.ICRC7 {
+  let manager = ClassPlusLib.ClassPlusInitializationManager(testOwner, get_canister(), false);
+  let aClass = ICRC7.Init<system>({
+    manager = manager;
+    initialState = ICRC7.initialState();
+    args = args;
+    pullEnvironment =  ?getEnvironment_ICRC7;
+    onInitialize = ?onInitializeICRC7;
+    onStorageChange = storageChangeICRC7
+  });
+  
+  return aClass();
+};
+
+var icrc37_migration_state = ICRC37.initialState();
+
+func get_icrc37_state(): ICRC37.CurrentState{
+  let #v0_1_0(#data(icrc37_state_current)) = icrc37_migration_state; 
+  icrc37_state_current;
+}; 
+
+
+
+func get_icrc37_environment(icrc7 : ICRC7.ICRC7) : () -> ICRC37.Environment{
+
+ return func() : ICRC37.Environment{
   {
     canister = get_canister;
     get_time = get_time;
@@ -132,12 +164,42 @@ func get_icrc37_environment(icrc7 : ICRC7.ICRC7) : ICRC37.Environment{
     can_revoke_token_approval = null;
     can_revoke_collection_approval = null;
     can_transfer_from = null;
-  }
+  } : ICRC37.Environment};
 };
 
+
+
+
+func onInitializeICRC37(newClass : ICRC37.ICRC37) : async* (){
+  
+};
+
+func storageChangeICRC37(state : ICRC37.State) : (){
+    icrc37_migration_state := state;
+};
+
+func getICRC37Class<system>(args: ICRC37.InitArgs, icrc7 : ICRC7.ICRC7) : ICRC37.ICRC37 {
+  let manager = ClassPlusLib.ClassPlusInitializationManager(testOwner, get_canister(), false);
+  let aClass = ICRC37.Init<system>({
+    manager = manager;
+    initialState = ICRC37.initialState();
+    args = args;
+    pullEnvironment =  ?get_icrc37_environment(icrc7);
+    onInitialize = ?onInitializeICRC37;
+    onStorageChange = storageChangeICRC37
+  });
+  
+  return aClass();
+};
+
+
+
+
+
+
 testsys<system>("max_revoke_approvals can be initialized", func<system>() {
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
   assert(icrc37.get_ledger_info().max_revoke_approvals == 106);
   ignore icrc37.update_ledger_info([#MaxRevokeApprovals(1000)]);
   assert(icrc37.get_ledger_info().max_revoke_approvals == 1000);
@@ -147,12 +209,10 @@ testsys<system>("max_revoke_approvals can be initialized", func<system>() {
   assert(icrc37.get_ledger_info().settle_to_approvals == 991);
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 testsys<system>("ICRC7 contract initializes with correct default state", func<system>() {
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
   D.print(debug_show(icrc37.get_ledger_info()));
   
   assert(icrc37.get_ledger_info().max_approvals_per_token_or_collection == 101);
@@ -161,13 +221,10 @@ testsys<system>("ICRC7 contract initializes with correct default state", func<sy
   assert(icrc37.get_ledger_info().settle_to_approvals == 450);
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
-
 testsys<system>("Approve another account for a set of token transfers", func<system>() {
   // Arrange: Set up the ICRC7 instance and approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let tokenOwner = testOwner;  // Replace with appropriate owner principal
   let spender = {owner = testCanister; subaccount = null};  // Replace with appropriate spender principal
@@ -236,16 +293,14 @@ testsys<system>("Approve another account for a set of token transfers", func<sys
   assert(approvedTokens1 == true)//"approval exists"
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 testsys<system>("Check approval requests for expiry and creation times", func<system>() {
   // Arrange: Set up the ICRC7 instance and approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let tokenOwner = testOwner;  // Replace with appropriate owner principal
-  let expiredTimestamp = test_time - 1000;  // Assume an expired timestamp
+  let expiredTimestamp = test_time - 10;  // Assume an expired timestamp
   let futureTimestamp = test_time + Nat64.fromNat(Int.abs(icrc7.get_ledger_info().permitted_drift)) + 1;  // Assume a future timestamp
   let oldTimestamp = test_time - Nat64.fromNat(Int.abs(icrc7.get_ledger_info().permitted_drift)) - 1;  // Assume a old timestamp
 
@@ -296,13 +351,11 @@ testsys<system>("Check approval requests for expiry and creation times", func<sy
 
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 testsys<system>("Check approval errors for improper from_subaccount and non-existing token", func<system>() {
   // Arrange: Set up the ICRC7 instance and approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let token_id = 1;  // Assuming token with ID 1 exists
   let metadata = baseNFT;
@@ -367,13 +420,10 @@ testsys<system>("Check approval errors for improper from_subaccount and non-exis
   );
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
-
 testsys<system>("Approve another account for all transfers in the collection and paginate query results", func<system>() {
   // The ICRC7 class and base environment are set up from the provided framework
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let approvedSpender = spender1;
 
@@ -454,15 +504,13 @@ testsys<system>("Approve another account for all transfers in the collection and
   }
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 
 testsys<system>("Check collection approval requests for expiry and creation times", func<system>() {
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
-  let expiredTimestamp = test_time - 1000;  // Assume an expired timestamp
+  let expiredTimestamp = test_time - 10;  // Assume an expired timestamp
   let futureTimestamp = test_time + Nat64.fromNat(Int.abs(icrc7.get_ledger_info().permitted_drift)) + 1;  // Assume a future timestamp
   let oldTimestamp = test_time - Nat64.fromNat(Int.abs(icrc7.get_ledger_info().permitted_drift)) - 1;  // Assume an old timestamp
   
@@ -516,22 +564,13 @@ testsys<system>("Check collection approval requests for expiry and creation time
 
    let #ok(?#Err(approvalResponsesOldx)) = approvalResponsesOld else return assert(false);
 
-
-
-
-  
 });
 
 
-
-
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
-
 testsys<system>("Check approval errors when owner doesn't own tokens in the collection", func<system>() {
   // Arrange: Set up the ICRC7 instance and approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let tokenOwner = testOwner;  // Replace with appropriate token owner principal
   
@@ -561,15 +600,10 @@ testsys<system>("Check approval errors when owner doesn't own tokens in the coll
   );
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
-
-
-
 testsys<system>("Reject Approval Attempt by Unauthorized User", func<system>() {
   // Arrange: Set up the ICRC7 instance, current test environment, and required variables
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let token_id = 1;  // Assuming token with ID 1 exists
   let metadata = baseNFT;
@@ -615,14 +649,11 @@ testsys<system>("Reject Approval Attempt by Unauthorized User", func<system>() {
   ); //"Transfer attempt is rejected"
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
-
 
 testsys<system>("Transfer a token to another account after approval", func<system>() {
   // ARRANGE: Set up the ICRC7 instance and required approvals
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let token_id = 1;  // Assuming token with ID 1 exists
   let metadata = baseNFT;
@@ -697,13 +728,11 @@ testsys<system>("Transfer a token to another account after approval", func<syste
     });
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 testsys<system>("Transfer a token to another account after collection approval", func<system>() {
   // ARRANGE: Set up the ICRC7 instance and required approvals
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let token_id = 1;  // Assuming token with ID 1 exists
   let metadata = baseNFT;
@@ -778,19 +807,13 @@ testsys<system>("Transfer a token to another account after collection approval",
   D.print("tokens_of2" # debug_show(tokens_of2));
 
   assert(tokens_of2.size() == 0);
-
-
-      
-      
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 testsys<system>("Clean up should limit number of approvals and log transactions", func<system>() {
   // ARRANGE: Set up the ICRC7 instance and required approvals
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let metadata = baseNFT;
   D.print("about to set" # debug_show(metadata));
@@ -849,13 +872,11 @@ testsys<system>("Clean up should limit number of approvals and log transactions"
       
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 testsys<system>("Too many approvals should trap", func<system>() {
   // ARRANGE: Set up the ICRC7 instance and required approvals
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let metadata = baseNFT;
   D.print("about to set" # debug_show(metadata));
@@ -913,13 +934,11 @@ testsys<system>("Too many approvals should trap", func<system>() {
   };
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 testsys<system>("Transfer a token to another account after collection approval", func<system>() {
   // ARRANGE: Set up the ICRC7 instance and required approvals
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let token_id = 1;  // Assuming token with ID 1 exists
   let metadata = baseNFT;
@@ -985,14 +1004,12 @@ testsys<system>("Transfer a token to another account after collection approval",
       
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 
 testsys<system>("Revoke a single approval on a token", func<system>() {
   // Arrange: Set up the ICRC7 instance and approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let tokenOwner = testOwner;  // Replace with appropriate owner principal
   let spender = spender1;  // Replace with appropriate spender principal
@@ -1085,13 +1102,12 @@ testsys<system>("Revoke a single approval on a token", func<system>() {
 
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
+
 
 testsys<system>("Revoke all approval on a token", func<system>() {
   // Arrange: Set up the ICRC7 instance and approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let tokenOwner = testOwner;  // Replace with appropriate owner principal
   let spender = spender1;  // Replace with appropriate spender principal
@@ -1184,14 +1200,11 @@ testsys<system>("Revoke all approval on a token", func<system>() {
 
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
-
 
 testsys<system>("Revoke single collection approvals for an account", func<system>() {
   // Arrange: Set up the ICRC7 instance and approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let tokenOwner = testOwner;  // Replace with appropriate owner principal
   let spender = spender1;  // Replace with appropriate spender principal
@@ -1278,13 +1291,10 @@ testsys<system>("Revoke single collection approvals for an account", func<system
   assert(collectionApprovalsAfterRevocation.size() == 1);  // "No collection approvals remaining after revocation"
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
-
 testsys<system>("Revoke all collection approvals for an account", func<system>() {
   // Arrange: Set up the ICRC7 instance and approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let tokenOwner = testOwner;  // Replace with appropriate owner principal
   let spender = spender1;  // Replace with appropriate spender principal
@@ -1371,13 +1381,11 @@ testsys<system>("Revoke all collection approvals for an account", func<system>()
   assert(collectionApprovalsAfterRevocation.size() == 0);  // "No collection approvals remaining after revocation"
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
 
 testsys<system>("Attempt to approve with duplicate or empty token ID arrays", func<system>() {
   // Arrange: Set up the ICRC7 instance and approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let tokenOwner = testOwner;  // Replace with appropriate owner principal
   let tokenIdsWithDuplicates = [1, 2, 3, 4, 5, 5];  // Token ID array with duplicate items
@@ -1408,14 +1416,10 @@ testsys<system>("Attempt to approve with duplicate or empty token ID arrays", fu
 
 });
 
-icrc7_migration_state := ICRC7.init(ICRC7.initialState(), #v0_1_0(#id), ?baseCollection, testOwner);
-icrc37_migration_state := ICRC37.init(ICRC37.initialState(), #v0_1_0(#id), ?base30Collection, testOwner);
-
-
 testsys<system>("Attempt to revoke approvals with duplicate or empty token ID arrays", func<system>() {
   // Arrange: Set up the ICRC7 instance and revoke approval parameters
-  let icrc7 = ICRC7.ICRC7(?icrc7_migration_state, testCanister, base_environment);
-  let icrc37 = ICRC37.ICRC37(?icrc37_migration_state, testCanister, get_icrc37_environment(icrc7));
+   let icrc7 = getICRC7Class<system>(?baseCollection);
+   let icrc37 = getICRC37Class<system>(?base37Collection, icrc7);
 
   let tokenOwner = testOwner;  // Replace with appropriate owner principal
   let tokenIdsWithDuplicates = [1, 2, 3, 4, 5, 5];  // Token ID array with duplicate items
